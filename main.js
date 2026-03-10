@@ -3,6 +3,7 @@ const mainVolume = document.getElementById('mainVolume');
 const micVolume = document.getElementById('micVolume');
 const micMuteBtn = document.getElementById('micMuteBtn');
 const pcIPInput = document.getElementById('pcIP');
+const pcPortInput = document.getElementById('pcPort');
 const connectBtn = document.getElementById('connectBtn');
 const statusDiv = document.getElementById('status');
 
@@ -10,6 +11,7 @@ let micTimeout;
 let micMuted = false;
 let ws;
 let pcIP = pcIPInput.value;
+let pcPort = pcPortInput.value;
 
 function updateStatus(message) {
     statusDiv.textContent = message;
@@ -21,7 +23,7 @@ function connect() {
         ws.close();
     }
 
-    const PC_WS_URL = `ws://${pcIP}:9000/ws/`;
+    const PC_WS_URL = `ws://${pcIP}:${pcPort}/ws/`;
     updateStatus(`Attempting to connect to ${PC_WS_URL}`);
     ws = new WebSocket(PC_WS_URL);
 
@@ -56,11 +58,12 @@ function connect() {
 
 connectBtn.addEventListener('click', () => {
     pcIP = pcIPInput.value;
+    pcPort = pcPortInput.value;
     connect();
 });
 
 // Auto-connect on load if IP is set
-if (pcIP) {
+if (pcIP && pcPort) {
     connect();
 }
 
