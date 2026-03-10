@@ -14,113 +14,163 @@ let ws = null;
 let reconnectTimer = null;
 
 function connect() {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+
+    if (ws && ws.readyState === WebSocket.OPEN)
         return;
-    }
 
     const url = `ws://${SERVER_IP}:${SERVER_PORT}/ws`;
+
     ws = new WebSocket(url);
 
     ws.onopen = () => {
-        console.log('Connected');
+
+        console.log("Connected to server");
+
         clearTimeout(reconnectTimer);
-        ws.send('10=applications=get');
+
+        // Request applications
+        ws.send("10=applications=get");
+
     };
 
     ws.onmessage = (event) => {
+
         try {
+
             const data = JSON.parse(event.data);
-            if (Array.isArray(data)) {
+
+            console.log("Server packet:", data);
+
+            if (data.apps || data.steamGames)
                 updateApps(data);
-            }
-        } catch (err) {
-            console.error('Parse error:', err);
+
         }
+        catch (err) {
+
+            console.error("JSON parse error:", err);
+
+        }
+
     };
 
     ws.onclose = () => {
-        console.log('Disconnected');
+
+        console.log("Disconnected. Reconnecting...");
+
         reconnectTimer = setTimeout(connect, 2000);
+
     };
 
     ws.onerror = (err) => {
-        console.error('Error:', err);
+
+        console.error("WebSocket error:", err);
+
     };
 }
 
-function updateApps(apps) {
-    console.log('Received applications:', apps);
-    appsDiv.innerHTML = '';
+function updateApps(packet) {
 
-    apps.forEach(app => {
-        const div = document.createElement('div');
-        div.classList.add('app-item');
+    console.log("Rendering applications...");
 
-        // Save the base64 image locally
-        if (app.IconBase64 && app.Name) {
-            const fileName = app.Name.replace(/[^a-z0-9]/gi, '_') + '.png'; // safe filename
-            const imgPath = `images/${fileName}`;
+    appsDiv.innerHTML = "";
 
-            // Convert base64 to binary and save using fetch + blob
-            const blob = b64toBlob(app.IconBase64, 'image/png');
-            const url = URL.createObjectURL(blob);
+    const allApps = [
+        ...(packet.apps || []),
+        ...(packet.steamGames || [])
+    ];
 
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = app.Name;
-            img.width = 32;
-            img.height = 32;
-            div.appendChild(img);
+    allApps.forEach(app => {
 
-            // Optionally, you can download/save to local storage / file system if using Node.js on Pi
-            // For browsers, direct saving to folder is restricted, so you’d need a Node.js server
+        const div = document.createElement("div");
+        div.classList.add("app-item");
+
+        const img = document.createElement("img");
+
+        // Desktop app (base64)
+        if (app.icon && !app.icon.startsWith("http")) {
+
+            img.src = `data:image/png;base64,${app.icon}`;
+
+        }
+        // Steam icon (URL)
+        else if (app.icon) {
+
+            img.src = app.icon;
+
         }
 
-        const span = document.createElement('span');
-        span.textContent = app.Name;
+        img.width = 32;
+        img.height = 32;
+
+        div.appendChild(img);
+
+        const span = document.createElement("span");
+
+        span.textContent = app.name;
+
         div.appendChild(span);
 
+        div.onclick = () => {
+
+            if (!ws || ws.readyState !== WebSocket.OPEN)
+                return;
+
+            // Steam game
+            if (packet.steamGames && packet.steamGames.includes(app)) {
+
+                ws.send(`12=${app.id}=run`);
+
+            }
+            // Desktop app
+            else {
+
+                ws.send(`11=${app.id}=run`);
+
+            }
+
+        };
+
         appsDiv.appendChild(div);
+
     });
+
 }
 
-function b64toBlob(b64Data, contentType = '', sliceSize = 512) {
-    const byteCharacters = atob(b64Data);
-    const byteArrays = [];
-    for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
-        const slice = byteCharacters.slice(offset, offset + sliceSize);
-        const byteNumbers = new Array(slice.length);
-        for (let i = 0; i < slice.length; i++) {
-            byteNumbers[i] = slice.charCodeAt(i);
-        }
-        byteArrays.push(new Uint8Array(byteNumbers));
-    }
-    return new Blob(byteArrays, { type: contentType });
-}
+mainVolume.addEventListener("input", () => {
 
-mainVolume.addEventListener('input', () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws && ws.readyState === WebSocket.OPEN)
         ws.send(`0=main=${mainVolume.value}`);
-    }
+
 });
 
-micVolume.addEventListener('input', () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+micVolume.addEventListener("input", () => {
+
+    if (!ws || ws.readyState !== WebSocket.OPEN)
+        return;
 
     clearTimeout(micTimeout);
+
     micTimeout = setTimeout(() => {
+
         ws.send(`0=mic=${micVolume.value}`);
+
     }, 50);
+
 });
 
-micMuteBtn.addEventListener('click', () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+micMuteBtn.addEventListener("click", () => {
+
+    if (!ws || ws.readyState !== WebSocket.OPEN)
+        return;
 
     micMuted = !micMuted;
-    ws.send(`0=micMute=${micMuted}`);
+
+    ws.send(`0=micmute=${micMuted}`);
+
 });
 
-// Auto-connect on page load
-window.addEventListener('load', () => {
+window.addEventListener("load", () => {
+
     connect();
+
 });
