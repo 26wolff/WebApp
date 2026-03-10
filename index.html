@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Audio Panel</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .app-item { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Audio Panel</h1>
+
+    <label>Main Volume</label>
+    <input type="range" id="mainVolume" min="0" max="100">
+
+    <label>Mic Volume</label>
+    <input type="range" id="micVolume" min="0" max="100">
+
+    <button id="micMuteBtn">Mute/Unmute Mic</button>
+
+    <h2>Applications</h2>
+    <div id="apps"></div>
+
+    <script src="main.js" type="module"></script>
+</body>
+</html>
