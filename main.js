@@ -1,22 +1,34 @@
 const appsDiv = document.getElementById('apps');
 const mainVolume = document.getElementById('mainVolume');
 const micVolume = document.getElementById('micVolume');
-const micMuteBtn = document.getElementById('micMuteBtn'); // add this button in your HTML
+const micMuteBtn = document.getElementById('micMuteBtn');
+const pcIPInput = document.getElementById('pcIP');
+const connectBtn = document.getElementById('connectBtn');
+const statusDiv = document.getElementById('status');
 
 let micTimeout;
-let micMuted = false; // track mute state
-// Replace with your PC's IP address and port
-const PC_WS_URL = 'ws://192.168.2.175:9000/ws/';
-console.log('Connecting to PC at', PC_WS_URL);
+let micMuted = false;
 let ws;
+let pcIP = pcIPInput.value;
+
+function updateStatus(message) {
+    statusDiv.textContent = message;
+    console.log(message);
+}
 
 function connect() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+    }
+
+    const PC_WS_URL = `ws://${pcIP}:9000/ws/`;
+    updateStatus(`Attempting to connect to ${PC_WS_URL}`);
     ws = new WebSocket(PC_WS_URL);
 
     ws.onopen = () => {
-        console.log('Connected to PC!');
+        updateStatus('Connected to PC!');
         console.log('Requesting applications...');
-        ws.send('10=applications=get'); // request applications
+        ws.send('10=applications=get');
     };
 
     ws.onmessage = (event) => {
@@ -30,19 +42,27 @@ function connect() {
         }
     };
 
-    ws.onclose = () => {
-        console.log('Connection lost. Reconnecting in 2 seconds...');
-        setTimeout(connect, 2000);
+    ws.onclose = (event) => {
+        updateStatus(`Connection lost. Code: ${event.code}, Reason: ${event.reason}. Click Connect to retry.`);
     };
 
     ws.onerror = (err) => {
+        updateStatus('WebSocket error. Check IP and network.');
         console.error('WebSocket error:', err);
+        console.log('WebSocket readyState:', ws.readyState);
         if (ws.readyState !== WebSocket.OPEN) ws.close();
     };
 }
 
-// Start initial connection
-connect();
+connectBtn.addEventListener('click', () => {
+    pcIP = pcIPInput.value;
+    connect();
+});
+
+// Auto-connect on load if IP is set
+if (pcIP) {
+    connect();
+}
 
 function updateApps(apps) {
     console.log('Received applications:', apps);
@@ -104,12 +124,17 @@ function b64toBlob(b64Data, contentType = '', sliceSize = 512) {
 mainVolume.addEventListener('input', () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(`0=main=${mainVolume.value}`);
+    } else {
+        updateStatus('Not connected. Please connect first.');
     }
 });
 
 
 micVolume.addEventListener('input', () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        updateStatus('Not connected. Please connect first.');
+        return;
+    }
 
     clearTimeout(micTimeout); // cancel previous scheduled send
     micTimeout = setTimeout(() => {
@@ -118,7 +143,10 @@ micVolume.addEventListener('input', () => {
 });
 
 micMuteBtn.addEventListener('click', () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        updateStatus('Not connected. Please connect first.');
+        return;
+    }
 
     micMuted = !micMuted;
     ws.send(`0=micMute=${micMuted}`); // send true/false to mute/unmute
