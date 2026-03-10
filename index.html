@@ -1,24 +1,50 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Audio Panel</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <h1>Audio Panel</h1>
-
-    <label>Main Volume</label>
-    <input type="range" id="mainVolume" min="0" max="100">
-
-    <label>Mic Volume</label>
-    <input type="range" id="micVolume" min="0" max="100">
-
-    <button id="micMuteBtn">Mute/Unmute Mic</button>
-
-    <h2>Applications</h2>
-    <div id="apps"></div>
-
-    <script src="main.js"></script>
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Control Panel</title>
+  </head>
+  <body>
+    <div class="icon-container">
+        <a href="#" onclick="showOnlyDiv('Audio'); return false;">
+            <img src="Content/SoundIcon.png" id="AudioIcon" class="icon">
+        </a>
+        <a href="#" onclick="showOnlyDiv('Apps'); return false;">
+            <img src="Content/AppsIcon.png" id="AppsIcon" class="icon">
+        </a>
+        <a href="#" onclick="showOnlyDiv('Steam'); return false;">
+            <img src="Content/SteamIcon.png" id="SteamIcon" class="icon">
+        </a>
+    </div>
+    <div id="contentContainer">
+        <div id="Audio" class="content-section">
+            <h2>Content 1</h2>
+            <p>This is the first div's content.</p>
+        </div>
+        <div id="Apps" class="content-section">
+            <h2>Content 2</h2>
+            <p>This is the second div's content.</p>
+        </div>
+        <div id="Steam" class="content-section">
+            <h2>Content 3</h2>
+            <p>This is the third div's content.</p>
+        </div>
+    </div>
+    
+    <script>
+        function showOnlyDiv(idToShow) {
+        const divs = document.querySelectorAll('.content-section');
+        divs.forEach(div => {
+            div.style.display = 'none';
+        });
+        const desiredDiv = document.getElementById(idToShow);
+            if (desiredDiv) {
+                desiredDiv.style.display = 'block';
+            }
+        }
+        window.onload = () => showOnlyDiv('Audio');
+    </script>
+    <link rel="stylesheet" href="style.css" />
+    <script src="main.js" type="module"></script>
+  </body>
 </html>

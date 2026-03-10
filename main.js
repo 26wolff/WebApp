@@ -1,122 +1,124 @@
-// ===== CONFIGURATION =====
-const SERVER_IP = "192.168.2.175";
-const SERVER_PORT = "3000";
-// ==========================
 
-const appsDiv = document.getElementById('apps');
-const mainVolume = document.getElementById('mainVolume');
-const micVolume = document.getElementById('micVolume');
-const micMuteBtn = document.getElementById('micMuteBtn');
+// manager.js
+export const Manager = new class {
+    constructor() {
+        // ===== CONFIGURATION =====
+        this.SERVER_IP = "192.168.2.175";
+        this.SERVER_PORT = "3000";
+        // ==========================
 
-let micTimeout;
-let micMuted = false;
-let ws = null;
-let reconnectTimer = null;
+        this.micTimeout;
+        this.micMuted = false;
+        this.ws = null;
+        this.reconnectTimer = null;
 
-function connect() {
-    if (ws && ws.readyState === WebSocket.OPEN) return;
+        this.sliderData = {};
+        this.appData = {};
+        this.steamData = {};
 
-    const url = `ws://${SERVER_IP}:${SERVER_PORT}/ws`;
-    ws = new WebSocket(url);
+        this.startup();
+    }
 
-    ws.onopen = () => {
-        console.log("Connected to server");
-        clearTimeout(reconnectTimer);
-        ws.send("10=applications=get"); // request apps
-    };
+    startup() {
+        // Load local JSON first
+        this.loadLocalData();
 
-    ws.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            console.log("Server packet:", data);
-            if (data.apps || data.steamGames) updateApps(data);
-        } catch (err) {
-            console.error("JSON parse error:", err);
-        }
-    };
+        // Uncomment the next line when server is ready
+        this.loadLocalSliderData();
+        //this.connectWebSocket();
+    }
 
-    ws.onclose = () => {
-        console.log("Disconnected. Reconnecting...");
-        reconnectTimer = setTimeout(connect, 2000);
-    };
+    loadLocalSliderData() {
+        fetch('Audio/sliders.json')
+            .then(res => res.json())
+            .then(data => {
+                this.updateSliderData(data.sliders || []);
+            })
+            .catch(err => console.error('Failed to load data.json:', err));
+    }
+    loadLocalData() {
+        fetch('data.json')
+            .then(res => res.json())
+            .then(data => {
+                this.updateAppData(data.apps || []);
+                this.updateSteamData(data.steamGames || []);
+            })
+            .catch(err => console.error('Failed to load data.json:', err));
+    }
 
-    ws.onerror = (err) => {
-        console.error("WebSocket error:", err);
-    };
-}
+    connectWebSocket() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
 
-function updateApps(packet) {
-    appsDiv.innerHTML = "";
-    appsDiv.classList.add("app-grid");
+        const url = `ws://${this.SERVER_IP}:${this.SERVER_PORT}/ws`;
+        this.ws = new WebSocket(url);
 
-    const allApps = [
-        ...(packet.apps || []),
-        ...(packet.steamGames || [])
-    ];
+        this.ws.onopen = () => {
+            console.log("[WS] Connected to server");
+            clearTimeout(this.reconnectTimer);
 
-    allApps.forEach(app => {
-        const btn = document.createElement("button");
-        btn.classList.add("app-button");
+            // Request initial packets
+            this.sendPacket(10, "applications", "get");
+        };
 
-        const img = document.createElement("img");
+        this.ws.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                console.log("[WS MSG]", msg);
 
-        // Desktop app (base64)
-        if (app.icon && !app.icon.startsWith("http")) {
-            img.src = `data:image/png;base64,${app.icon}`;
-        }
-        // Steam icon (URL)
-        else if (app.icon) {
-            img.src = app.icon;
-        }
+                // Dynamically update data based on keys
+                for (const key in msg) {
+                    if (!msg.hasOwnProperty(key)) continue;
 
-        // Preserve aspect ratio, fit into square 64x64
-        img.style.width = "64px";
-        img.style.height = "64px";
-        img.style.objectFit = "contain"; // preserve aspect ratio
-        img.style.background = "#222";   // optional padding background
+                    const value = msg[key];
 
-        const span = document.createElement("span");
-        span.textContent = app.name;
-
-        btn.appendChild(img);
-        btn.appendChild(span);
-
-        btn.onclick = () => {
-            if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-            // Steam game if it's in steamGames list
-            if (packet.steamGames && packet.steamGames.find(g => g.id === app.id)) {
-                ws.send(`12=${app.id}=run`);
-            } else {
-                ws.send(`11=${app.id}=run`);
+                    switch (key) {
+                        case "sliders":
+                            this.updateSliderData(value);
+                            break;
+                        case "apps":
+                            this.updateAppData(value);
+                            break;
+                        case "steamGames":
+                            this.updateSteamData(value);
+                            break;
+                        default:
+                            // If you have other keys in the future, just store them dynamically
+                            this[key] = value;
+                            console.log(`[UPDATE] ${key} updated dynamically`, value);
+                            break;
+                    }
+                }
+            } catch (err) {
+                console.warn("[WS] Failed to parse JSON message:", err);
             }
         };
 
-        appsDiv.appendChild(btn);
-    });
-}
+        this.ws.onclose = () => {
+            console.log("[WS] Disconnected, reconnecting in 2s...");
+            this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
+        };
 
-mainVolume.addEventListener("input", () => {
-    if (ws && ws.readyState === WebSocket.OPEN)
-        ws.send(`0=main=${mainVolume.value}`);
-});
+        this.ws.onerror = (err) => console.error("[WS ERROR]", err);
+    }
 
-micVolume.addEventListener("input", () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    sendPacket(type, name, value) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(`${type}=${name}=${value}`);
+        }
+    }
 
-    clearTimeout(micTimeout);
-    micTimeout = setTimeout(() => {
-        ws.send(`0=mic=${micVolume.value}`);
-    }, 50);
-});
+    updateAppData(packet) {
+        this.appData = packet;
+        console.log("[UPDATE] Applications:", this.appData);
+    }
 
-micMuteBtn.addEventListener("click", () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    updateSliderData(packet) {
+        this.sliderData = packet;
+        console.log("[UPDATE] Sliders:", this.sliderData);
+    }
 
-    micMuted = !micMuted;
-    ws.send(`0=micmute=${micMuted}`);
-});
-
-window.addEventListener("load", () => {
-    connect();
-});
+    updateSteamData(packet) {
+        this.steamData = packet;
+        console.log("[UPDATE] Steam Games:", this.steamData);
+    }
+};

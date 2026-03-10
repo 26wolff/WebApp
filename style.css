@@ -1,0 +1,32 @@
+.content-section {
+  display: none; /* Hides all divs by default */
+}
+
+/* Optional: Show the first div when the page loads */
+.content-section:first-of-type {
+  display: block;
+}
+
+body {
+  background-image: url(Content/Background.png);
+  background-size: cover;
+}
+
+.icon-container {
+  position: absolute;
+  right: 5vh;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column; /* vertical stack */
+  justify-content: space-evenly; /* evenly spaced vertically */
+  align-items: center; /* optional, centers horizontally in container */
+  height: 100vh; /* container full height */
+}
+
+.icon {
+  filter: invert(100%);
+  width: 50px; /* adjust as needed */
+  height: 50px;
+  cursor: pointer;
+}
