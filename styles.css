@@ -5,16 +5,16 @@ body {
   text-align: center;
   margin: 10px;
 }
-h1,
-h2 {
-  margin: 10px;
-}
+
+h1, h2 { margin: 10px; }
+
 .app-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, 120px);
   gap: 10px;
   justify-content: center;
 }
+
 .app-button {
   display: flex;
   flex-direction: column;
@@ -27,11 +27,15 @@ h2 {
   border-radius: 8px;
   transition: background 0.2s;
 }
+
 .app-button:hover {
   background: #666;
 }
+
 .app-button img {
   width: 64px;
   height: 64px;
+  object-fit: contain; /* preserves aspect ratio */
+  background: #222;    /* padding background for non-square images */
   margin-bottom: 5px;
 }
