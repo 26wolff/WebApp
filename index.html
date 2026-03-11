@@ -5,105 +5,201 @@
     <title>Control Panel</title>
   </head>
   <body>
-    <div class="icon-panel">
+    <div class="dp-nav">
       <a
         onclick="
-          showOnlyDiv('Audio');
+          showOnlyDiv('dp-Home');
           return false;
         "
-        class="icon-container"
+        class="dp-nav-item"
       >
-        <img src="Content/SoundIcon.png" id="AudioIcon" class="icon" />
-        <span id="AudioText" class="iconText">AUDIO</span>
+        <img src="Content/HomeIcon.png" id="dp-HomeIcon" class="dp-icon" />
+        <span id="dp-HomeText" class="dp-icon-text">HOME</span>
       </a>
       <a
         onclick="
-          showOnlyDiv('Music');
+          showOnlyDiv('dp-Audio');
           return false;
         "
-        class="icon-container"
+        class="dp-nav-item"
       >
-        <img src="Content/MusicIcon.png" id="MusicIcon" class="icon" />
-        <span id="MusicText" class="iconText">MUSIC</span>
+        <img src="Content/SoundIcon.png" id="dp-AudioIcon" class="dp-icon" />
+        <span id="dp-AudioText" class="dp-icon-text">AUDIO</span>
       </a>
       <a
         onclick="
-          showOnlyDiv('Apps');
+          showOnlyDiv('dp-Music');
           return false;
         "
-        class="icon-container"
+        class="dp-nav-item"
       >
-        <img src="Content/AppsIcon.png" id="AppsIcon" class="icon" />
-        <span id="AppsText" class="iconText">APPS</span>
+        <img src="Content/MusicIcon.png" id="dp-MusicIcon" class="dp-icon" />
+        <span id="dp-MusicText" class="dp-icon-text">MUSIC</span>
       </a>
       <a
         onclick="
-          showOnlyDiv('Games');
+          showOnlyDiv('dp-Apps');
           return false;
         "
-        class="icon-container"
+        class="dp-nav-item"
       >
-        <img src="Content/GamesIcon.png" id="GamesIcon" class="icon" />
-        <span id="GamesText" class="iconText">GAMES</span>
+        <img src="Content/AppsIcon.png" id="dp-AppsIcon" class="dp-icon" />
+        <span id="dp-AppsText" class="dp-icon-text">APPS</span>
       </a>
       <a
         onclick="
-          showOnlyDiv('Settings');
+          showOnlyDiv('dp-Settings');
           return false;
         "
-        class="icon-container"
+        class="dp-nav-item"
       >
-        <img src="Content/SettingsIcon.png" id="SettingsIcon" class="icon" />
-        <span id="SettingsText" class="iconText">SETTINGS</span>
+        <img
+          src="Content/SettingsIcon.png"
+          id="dp-SettingsIcon"
+          class="dp-icon"
+        />
+        <span id="dp-SettingsText" class="dp-icon-text">SETTINGS</span>
       </a>
-
     </div>
-    <div id="contentContainer">
-      <div id="Audio" class="content-section">
-        <div id="sliderContainer"></div>
+
+    <div id="dp-content">
+      <div id="dp-Home" class="dp-section">
+        <div class="dp-home-panel">
+          <div class="dp-home-clock" id="dp-home-clock">--:--</div>
+          <div class="dp-home-date" id="dp-home-date">---</div>
+        </div>
       </div>
-      <div id="Music" class="content-section">
-        <div class="page_header">
-          <h2 class="page_title">Music</h2>
-          <div class="page_icon_container">
-            <img src="Content/MusicIcon.png" class="page_icon" />
+      <div id="dp-Audio" class="dp-section">
+        <div id="dp-sliders"></div>
+      </div>
+      <div id="dp-Music" class="dp-section">
+        <div class="dp-music-panel">
+          <div class="dp-music-cluster">
+            <button class="dp-music-btn dp-music-btn-aux" type="button" data-action="run">
+              <img src="Content/MusicRunIcon.png" alt="Run Music" />
+            </button>
+            <div class="dp-music-controls">
+              <button class="dp-music-btn" type="button" data-action="prev">
+                <img src="Content/BackIcon.png" alt="Previous" />
+              </button>
+              <button class="dp-music-btn dp-music-btn-primary" type="button" id="dp-music-playpause">
+                <img src="Content/CurrIcon.png" alt="Play/Pause" id="dp-music-playpause-icon" />
+              </button>
+              <button class="dp-music-btn" type="button" data-action="next">
+                <img src="Content/ForwardIcon.png" alt="Next" />
+              </button>
+            </div>
+            <button class="dp-music-btn dp-music-btn-aux" type="button" id="dp-music-mute">
+              <img src="Content/MusicIcon.png" alt="Mute" id="dp-music-mute-icon" />
+            </button>
           </div>
         </div>
-        <p>This is the second div's content.</p>
       </div>
-      <div id="Apps" class="content-section">
-        <div class="page_header">
-          <h2 class="page_title">Apps</h2>
-          <div class="page_icon_container">
-            <img src="Content/AppsIcon.png" class="page_icon" />
+      <div id="dp-Apps" class="dp-section">
+        <div class="dp-apps-tabs">
+          <button
+            class="dp-apps-tab"
+            type="button"
+            onclick="showAppsSection('apps')"
+          >
+            <span class="dp-apps-tab-icon">
+              <img src="Content/AppsIcon.png" alt="Apps" />
+            </span>
+            <span class="dp-apps-tab-title">Apps</span>
+          </button>
+          <button
+            class="dp-apps-tab"
+            type="button"
+            onclick="showAppsSection('games')"
+          >
+            <span class="dp-apps-tab-icon">
+              <img src="Content/GamesIcon.png" alt="Games" />
+            </span>
+            <span class="dp-apps-tab-title">Games</span>
+          </button>
+        </div>
+
+        <div class="dp-apps-panels">
+          <div class="dp-apps-panel dp-apps-panel-apps">
+            <div class="dp-empty-state">
+              <img
+                src="Content/AppsIcon.png"
+                alt="No Applications"
+                class="dp-empty-icon"
+              />
+              <span class="dp-empty-text">No applications found</span>
+            </div>
+          </div>
+          <div class="dp-apps-panel dp-apps-panel-games">
+            <div class="dp-empty-state">
+              <img
+                src="Content/GamesIcon.png"
+                alt="No Games"
+                class="dp-empty-icon"
+              />
+              <span class="dp-empty-text">No games found</span>
+            </div>
           </div>
         </div>
-        <p>This is the third div's content.</p>
       </div>
-      <div id="Games" class="content-section">
-        <div class="page_header">
-          <h2 class="page_title">Games</h2>
-          <div class="page_icon_container">
-            <img src="Content/GamesIcon.png" class="page_icon" />
+      <div id="dp-Settings" class="dp-section">
+        <div class="dp-settings-panel">
+          <div class="dp-settings-grid">
+            <button class="dp-setting-card" id="dp-setting-reload-page" type="button">
+              <div class="dp-setting-icon">
+                <img src="Content/ReloadIcon.png" alt="Reload" />
+              </div>
+              <div class="dp-setting-text">
+                <span class="dp-setting-title">Reload Page</span>
+                <span class="dp-setting-subtitle">Refresh the display</span>
+              </div>
+            </button>
+
+            <div class="dp-theme-section">
+              <div class="dp-setting-text">
+                <span class="dp-setting-title">Theme</span>
+                <span class="dp-setting-subtitle">Choose a color scheme</span>
+              </div>
+              <div class="dp-theme-options">
+                <button class="dp-theme-option" data-theme="default" type="button">
+                  <span class="dp-theme-swatch dp-theme-default"></span>
+                  <span class="dp-theme-label">Default</span>
+                </button>
+                <button class="dp-theme-option" data-theme="graphite" type="button">
+                  <span class="dp-theme-swatch dp-theme-graphite"></span>
+                  <span class="dp-theme-label">Graphite</span>
+                </button>
+                <button class="dp-theme-option" data-theme="autumn" type="button">
+                  <span class="dp-theme-swatch dp-theme-autumn"></span>
+                  <span class="dp-theme-label">Autumn</span>
+                </button>
+                <button class="dp-theme-option" data-theme="ocean" type="button">
+                  <span class="dp-theme-swatch dp-theme-ocean"></span>
+                  <span class="dp-theme-label">Ocean</span>
+                </button>
+                <button class="dp-theme-option" data-theme="neon" type="button">
+                  <span class="dp-theme-swatch dp-theme-neon"></span>
+                  <span class="dp-theme-label">Neon</span>
+                </button>
+                <button class="dp-theme-option" data-theme="tech" type="button">
+                  <span class="dp-theme-swatch dp-theme-tech"></span>
+                  <span class="dp-theme-label">Tech</span>
+                </button>
+                <button class="dp-theme-option" data-theme="synth" type="button">
+                  <span class="dp-theme-swatch dp-theme-synth"></span>
+                  <span class="dp-theme-label">Synth</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-        <p>This is the fourth div's content.</p>
-      </div>
-      <div id="Settings" class="content-section">
-        <div class="page_header">
-          <h2 class="page_title">Settings</h2>
-          <div class="page_icon_container">
-            <img src="Content/SettingsIcon.png" class="page_icon" />
-          </div>
-        </div>
-        <p>This is the Fifth div's content.</p>
       </div>
     </div>
 
     <script>
       function showOnlyDiv(idToShow) {
         // Hide all sections
-        const divs = document.querySelectorAll(".content-section");
+        const divs = document.querySelectorAll(".dp-section");
         divs.forEach((div) => (div.style.display = "none"));
 
         // Show desired section
@@ -111,20 +207,40 @@
         if (desiredDiv) desiredDiv.style.display = "block";
 
         // Update selected icon
-        const iconContainers = document.querySelectorAll(".icon-container");
+        const iconContainers = document.querySelectorAll(".dp-nav-item");
         iconContainers.forEach((container) =>
-          container.classList.remove("selected"),
+          container.classList.remove("dp-selected"),
         );
 
         // Add selected class to clicked icon
         const selectedIcon = document.querySelector(
           `#${idToShow}Icon`,
         )?.parentElement;
-        if (selectedIcon) selectedIcon.classList.add("selected");
+        if (selectedIcon) selectedIcon.classList.add("dp-selected");
+      }
+
+      function showAppsSection(which) {
+        const panels = document.querySelectorAll(".dp-apps-panel");
+        panels.forEach((panel) => (panel.style.display = "none"));
+
+        const tabs = document.querySelectorAll(".dp-apps-tab");
+        tabs.forEach((tab) => tab.classList.remove("dp-selected"));
+
+        const panel =
+          which === "games"
+            ? document.querySelector(".dp-apps-panel-games")
+            : document.querySelector(".dp-apps-panel-apps");
+        if (panel) panel.style.display = "block";
+
+        const tabIndex = which === "games" ? 1 : 0;
+        if (tabs[tabIndex]) tabs[tabIndex].classList.add("dp-selected");
       }
 
       // Show default section on load
-      window.onload = () => showOnlyDiv("Audio");
+      window.onload = () => {
+        showOnlyDiv("dp-Home");
+        showAppsSection("apps");
+      };
     </script>
     <link rel="stylesheet" href="style.css" />
     <script src="main.js" type="module"></script>
