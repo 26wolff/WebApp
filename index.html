@@ -5,44 +5,126 @@
     <title>Control Panel</title>
   </head>
   <body>
-    <div class="icon-container">
-        <a href="#" onclick="showOnlyDiv('Audio'); return false;">
-            <img src="Content/SoundIcon.png" id="AudioIcon" class="icon">
-        </a>
-        <a href="#" onclick="showOnlyDiv('Apps'); return false;">
-            <img src="Content/AppsIcon.png" id="AppsIcon" class="icon">
-        </a>
-        <a href="#" onclick="showOnlyDiv('Steam'); return false;">
-            <img src="Content/SteamIcon.png" id="SteamIcon" class="icon">
-        </a>
+    <div class="icon-panel">
+      <a
+        onclick="
+          showOnlyDiv('Audio');
+          return false;
+        "
+        class="icon-container"
+      >
+        <img src="Content/SoundIcon.png" id="AudioIcon" class="icon" />
+        <span id="AudioText" class="iconText">AUDIO</span>
+      </a>
+      <a
+        onclick="
+          showOnlyDiv('Music');
+          return false;
+        "
+        class="icon-container"
+      >
+        <img src="Content/MusicIcon.png" id="MusicIcon" class="icon" />
+        <span id="MusicText" class="iconText">MUSIC</span>
+      </a>
+      <a
+        onclick="
+          showOnlyDiv('Apps');
+          return false;
+        "
+        class="icon-container"
+      >
+        <img src="Content/AppsIcon.png" id="AppsIcon" class="icon" />
+        <span id="AppsText" class="iconText">APPS</span>
+      </a>
+      <a
+        onclick="
+          showOnlyDiv('Games');
+          return false;
+        "
+        class="icon-container"
+      >
+        <img src="Content/GamesIcon.png" id="GamesIcon" class="icon" />
+        <span id="GamesText" class="iconText">GAMES</span>
+      </a>
+      <a
+        onclick="
+          showOnlyDiv('Settings');
+          return false;
+        "
+        class="icon-container"
+      >
+        <img src="Content/SettingsIcon.png" id="SettingsIcon" class="icon" />
+        <span id="SettingsText" class="iconText">SETTINGS</span>
+      </a>
+
     </div>
     <div id="contentContainer">
-        <div id="Audio" class="content-section">
-            <h2>Content 1</h2>
-            <p>This is the first div's content.</p>
+      <div id="Audio" class="content-section">
+        <div id="sliderContainer"></div>
+      </div>
+      <div id="Music" class="content-section">
+        <div class="page_header">
+          <h2 class="page_title">Music</h2>
+          <div class="page_icon_container">
+            <img src="Content/MusicIcon.png" class="page_icon" />
+          </div>
         </div>
-        <div id="Apps" class="content-section">
-            <h2>Content 2</h2>
-            <p>This is the second div's content.</p>
+        <p>This is the second div's content.</p>
+      </div>
+      <div id="Apps" class="content-section">
+        <div class="page_header">
+          <h2 class="page_title">Apps</h2>
+          <div class="page_icon_container">
+            <img src="Content/AppsIcon.png" class="page_icon" />
+          </div>
         </div>
-        <div id="Steam" class="content-section">
-            <h2>Content 3</h2>
-            <p>This is the third div's content.</p>
+        <p>This is the third div's content.</p>
+      </div>
+      <div id="Games" class="content-section">
+        <div class="page_header">
+          <h2 class="page_title">Games</h2>
+          <div class="page_icon_container">
+            <img src="Content/GamesIcon.png" class="page_icon" />
+          </div>
         </div>
+        <p>This is the fourth div's content.</p>
+      </div>
+      <div id="Settings" class="content-section">
+        <div class="page_header">
+          <h2 class="page_title">Settings</h2>
+          <div class="page_icon_container">
+            <img src="Content/SettingsIcon.png" class="page_icon" />
+          </div>
+        </div>
+        <p>This is the Fifth div's content.</p>
+      </div>
     </div>
-    
+
     <script>
-        function showOnlyDiv(idToShow) {
-        const divs = document.querySelectorAll('.content-section');
-        divs.forEach(div => {
-            div.style.display = 'none';
-        });
+      function showOnlyDiv(idToShow) {
+        // Hide all sections
+        const divs = document.querySelectorAll(".content-section");
+        divs.forEach((div) => (div.style.display = "none"));
+
+        // Show desired section
         const desiredDiv = document.getElementById(idToShow);
-            if (desiredDiv) {
-                desiredDiv.style.display = 'block';
-            }
-        }
-        window.onload = () => showOnlyDiv('Audio');
+        if (desiredDiv) desiredDiv.style.display = "block";
+
+        // Update selected icon
+        const iconContainers = document.querySelectorAll(".icon-container");
+        iconContainers.forEach((container) =>
+          container.classList.remove("selected"),
+        );
+
+        // Add selected class to clicked icon
+        const selectedIcon = document.querySelector(
+          `#${idToShow}Icon`,
+        )?.parentElement;
+        if (selectedIcon) selectedIcon.classList.add("selected");
+      }
+
+      // Show default section on load
+      window.onload = () => showOnlyDiv("Audio");
     </script>
     <link rel="stylesheet" href="style.css" />
     <script src="main.js" type="module"></script>
