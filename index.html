@@ -100,22 +100,22 @@
           <button
             class="dp-apps-tab"
             type="button"
-            onclick="showAppsSection('apps')"
-          >
-            <span class="dp-apps-tab-icon">
-              <img src="Content/AppsIcon.png" alt="Apps" />
-            </span>
-            <span class="dp-apps-tab-title">Apps</span>
-          </button>
-          <button
-            class="dp-apps-tab"
-            type="button"
             onclick="showAppsSection('games')"
           >
             <span class="dp-apps-tab-icon">
               <img src="Content/GamesIcon.png" alt="Games" />
             </span>
             <span class="dp-apps-tab-title">Games</span>
+          </button>
+          <button
+            class="dp-apps-tab"
+            type="button"
+            onclick="showAppsSection('apps')"
+          >
+            <span class="dp-apps-tab-icon">
+              <img src="Content/AppsIcon.png" alt="Apps" />
+            </span>
+            <span class="dp-apps-tab-title">Apps</span>
           </button>
         </div>
 
@@ -232,14 +232,14 @@
             : document.querySelector(".dp-apps-panel-apps");
         if (panel) panel.style.display = "block";
 
-        const tabIndex = which === "games" ? 1 : 0;
+        const tabIndex = which === "games" ? 0 : 1;
         if (tabs[tabIndex]) tabs[tabIndex].classList.add("dp-selected");
       }
 
       // Show default section on load
       window.onload = () => {
         showOnlyDiv("dp-Home");
-        showAppsSection("apps");
+        showAppsSection("games");
       };
     </script>
     <link rel="stylesheet" href="style.css" />
