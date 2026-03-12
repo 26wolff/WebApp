@@ -484,7 +484,7 @@ class MusicControls {
 
     triggerCommand(name) {
         if (name === 'run') {
-            Manager.sendPacket('11=music=run');
+            Manager.sendPacket('11=1675214580=run');
             return;
         }
         Manager.handleMusicCommand(name);
