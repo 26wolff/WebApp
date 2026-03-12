@@ -15,7 +15,7 @@ export const Manager = new class {
         this.sliderData = [];
         this.sliders = []; // list of Slider instances
         this.appData = {};
-        this.steamData = {};
+        this.gameData = {};
         this.startup();
     }
 
@@ -41,7 +41,7 @@ export const Manager = new class {
             .then(res => res.json())
             .then(data => {
                 this.updateAppData(data.apps || []);
-                this.updateSteamData(data.steamGames || []);
+                this.updateGameData(data.games || []);
             })
             .catch(err => console.error('Failed to load data.json:', err));
     }
@@ -70,7 +70,8 @@ export const Manager = new class {
                     switch (key) {
                         case "sliders": this.updateSliderData(value); break;
                         case "apps": this.updateAppData(value); break;
-                        case "steamGames": this.updateSteamData(value); break;
+                        case "games": this.updateGameData(value); break;
+                        case "music": this.updateMusicNowPlaying(value); break;
                         default: this[key] = value; console.log(`[UPDATE] ${key} updated`, value); break;
                     }
                 }
@@ -95,15 +96,24 @@ export const Manager = new class {
         }
     }
 
+    normalizeAppItem(item) {
+        const id = item?.id ?? item?.Id ?? null;
+        const name = item?.name ?? item?.Name ?? '';
+        const icon = item?.icon ?? item?.Icon ?? '';
+        return { id, name, icon };
+    }
+
     updateAppData(packet) {
-        this.appData = packet;
+        const list = Array.isArray(packet) ? packet : [];
+        this.appData = list.map(item => this.normalizeAppItem(item));
         console.log("[UPDATE] Applications:", this.appData);
         this.renderApps();
     }
 
-    updateSteamData(packet) {
-        this.steamData = packet;
-        console.log("[UPDATE] Steam Games:", this.steamData);
+    updateGameData(packet) {
+        const list = Array.isArray(packet) ? packet : [];
+        this.gameData = list.map(item => this.normalizeAppItem(item));
+        console.log("[UPDATE] Games:", this.gameData);
         this.renderGames();
     }
 
@@ -111,6 +121,18 @@ export const Manager = new class {
         this.sliderData = packet;
         console.log("[UPDATE] Sliders:", this.sliderData);
         this.renderSliders();
+        this.renderMusicSlider();
+    }
+
+    renderMusicSlider() {
+        const host = document.getElementById('dp-music-slider');
+        if (!host) return;
+        host.innerHTML = '';
+
+        const musicSlider = this.sliderData.find(sl => sl.code === '1=music');
+        if (!musicSlider) return;
+
+        new Slider(musicSlider, host, this.ws);
     }
 
     renderSliders() {
@@ -130,15 +152,20 @@ export const Manager = new class {
         const panel = document.querySelector('.dp-apps-panel-apps');
         if (!panel) return;
 
-        panel.innerHTML = '';
-
-        const container = document.createElement('div');
-        container.className = 'dp-apps-list';
-        panel.appendChild(container);
+        const emptyState = panel.querySelector('.dp-empty-state');
+        let container = panel.querySelector('.dp-apps-list');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'dp-apps-list';
+            panel.appendChild(container);
+        }
+        container.innerHTML = '';
 
         const appList = Array.isArray(this.appData) ? this.appData : [];
+        if (emptyState) emptyState.style.display = appList.length ? 'none' : 'flex';
+        if (!appList.length) return;
         appList.forEach(appInfo => {
-            new AppTile(appInfo, container);
+            new AppTile(appInfo, container, 'Content/AppsIcon.png');
         });
     }
 
@@ -146,15 +173,20 @@ export const Manager = new class {
         const panel = document.querySelector('.dp-apps-panel-games');
         if (!panel) return;
 
-        panel.innerHTML = '';
+        const emptyState = panel.querySelector('.dp-empty-state');
+        let container = panel.querySelector('.dp-apps-list');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'dp-apps-list';
+            panel.appendChild(container);
+        }
+        container.innerHTML = '';
 
-        const container = document.createElement('div');
-        container.className = 'dp-games-list';
-        panel.appendChild(container);
-
-        const gameList = Array.isArray(this.steamData) ? this.steamData : [];
+        const gameList = Array.isArray(this.gameData) ? this.gameData : [];
+        if (emptyState) emptyState.style.display = gameList.length ? 'none' : 'flex';
+        if (!gameList.length) return;
         gameList.forEach(gameInfo => {
-            new GameTile(gameInfo, container);
+            new GameTile(gameInfo, container, 'Content/GamesIcon.png');
         });
     }
 
@@ -191,6 +223,39 @@ export const Manager = new class {
     updateMusicMuteButton(isMuted) {
         if (this.musicControls) {
             this.musicControls.setMuteState(isMuted);
+        }
+    }
+
+    updateMusicNowPlaying(info) {
+        const titleEl = document.getElementById('dp-music-title');
+        const artistEl = document.getElementById('dp-music-artist');
+        const subEl = document.getElementById('dp-music-sub');
+        const thumbEl = document.getElementById('dp-music-thumb');
+
+        if (!info) {
+            if (titleEl) titleEl.textContent = 'Nothing playing';
+            if (artistEl) artistEl.textContent = '—';
+            if (subEl) subEl.textContent = '—';
+            if (thumbEl) thumbEl.src = 'Content/NoSongIcon.png';
+            if (this.musicControls) this.musicControls.setPlayingState(false);
+            return;
+        }
+
+        if (titleEl) titleEl.textContent = info.title || 'Unknown';
+        if (artistEl) artistEl.textContent = info.artist || '—';
+        if (thumbEl) {
+            const thumb = info.thumbnail || '';
+            if (thumb) {
+                thumbEl.src = thumb.startsWith('data:') ? thumb : `data:image/png;base64,${thumb}`;
+            } else {
+                thumbEl.src = 'Content/NoSongIcon.png';
+            }
+        }
+
+        if (this.musicControls) {
+            const status = (info.status || '').toLowerCase();
+            const isPlaying = status === 'playing';
+            this.musicControls.setPlayingState(isPlaying);
         }
     }
 };
@@ -373,10 +438,11 @@ class Slider {
 }
 
 class AppTile {
-    constructor(data, parentContainer) {
+    constructor(data, parentContainer, fallbackIcon) {
         this.id = data.id;
         this.name = data.name;
         this.icon = data.icon;
+        this.fallbackIcon = fallbackIcon;
         this.createElement(parentContainer);
     }
 
@@ -385,14 +451,13 @@ class AppTile {
         this.container.className = 'dp-app-item';
         this.container.type = 'button';
 
-        const iconSrc = this.icon?.startsWith('data:')
-            ? this.icon
-            : `data:image/png;base64,${this.icon}`;
-
         this.container.innerHTML = `
-            <img class="dp-app-item-icon" src="${iconSrc}" alt="${this.name}" />
+            <img class="dp-app-item-icon" alt="${this.name}" />
             <span class="dp-app-item-title">${this.name}</span>
         `;
+
+        const img = this.container.querySelector('img');
+        setIconImage(img, this.icon, this.fallbackIcon);
 
         parent.appendChild(this.container);
 
@@ -412,34 +477,26 @@ class AppTile {
 }
 
 class GameTile {
-    constructor(data, parentContainer) {
+    constructor(data, parentContainer, fallbackIcon) {
         this.id = data.id;
         this.name = data.name;
         this.icon = data.icon;
+        this.fallbackIcon = fallbackIcon;
         this.createElement(parentContainer);
-    }
-
-    getDataUrl() {
-        if (!this.icon) return '';
-        if (this.icon.startsWith('data:')) return this.icon;
-        if (this.icon.startsWith('/9j/')) return `data:image/jpeg;base64,${this.icon}`;
-        if (this.icon.startsWith('iVBOR')) return `data:image/png;base64,${this.icon}`;
-        return `data:image/png;base64,${this.icon}`;
     }
 
     createElement(parent) {
         this.container = document.createElement('button');
-        this.container.className = 'dp-game-item';
+        this.container.className = 'dp-app-item';
         this.container.type = 'button';
 
-        const bannerSrc = this.getDataUrl();
-
         this.container.innerHTML = `
-            <div class="dp-game-banner-wrap">
-                ${bannerSrc ? `<img class="dp-game-banner" src="${bannerSrc}" alt="${this.name}" />` : `<div class="dp-game-banner dp-game-banner-fallback"></div>`}
-            </div>
-            <span class="dp-game-title">${this.name}</span>
+            <img class="dp-app-item-icon" alt="${this.name}" />
+            <span class="dp-app-item-title">${this.name}</span>
         `;
+
+        const img = this.container.querySelector('img');
+        setIconImage(img, this.icon, this.fallbackIcon);
 
         parent.appendChild(this.container);
 
@@ -458,21 +515,57 @@ class GameTile {
     }
 }
 
+function buildIconSources(icon, fallbackIcon) {
+    const sources = [];
+    const hasIcon = typeof icon === 'string' && icon.length > 0;
+    if (hasIcon) {
+        if (icon.startsWith('data:')) {
+            sources.push(icon);
+        } else if (icon.startsWith('/9j/')) {
+            sources.push(`data:image/jpeg;base64,${icon}`);
+        } else if (icon.startsWith('UklG')) {
+            // WebP base64
+            sources.push(`data:image/webp;base64,${icon}`);
+        } else if (icon.startsWith('iVBOR')) {
+            sources.push(`data:image/png;base64,${icon}`);
+        } else if (icon.startsWith('http') || icon.startsWith('//')) {
+            sources.push(icon);
+        } else {
+            sources.push(`data:image/png;base64,${icon}`);
+        }
+    }
+
+    sources.push(fallbackIcon);
+    return sources;
+}
+
+function setIconImage(imgEl, icon, fallbackIcon) {
+    const sources = buildIconSources(icon, fallbackIcon);
+    let index = 0;
+
+    const tryNext = () => {
+        if (index >= sources.length) return;
+        const src = sources[index++];
+        imgEl.src = src;
+    };
+
+    imgEl.addEventListener('error', () => {
+        tryNext();
+    });
+
+    tryNext();
+}
+
 class MusicControls {
     constructor() {
         this.isPlaying = false;
         this.isMuted = false;
         this.playPauseBtn = document.getElementById('dp-music-playpause');
         this.playPauseIcon = document.getElementById('dp-music-playpause-icon');
-        this.muteBtn = document.getElementById('dp-music-mute');
-        this.muteIcon = document.getElementById('dp-music-mute-icon');
         this.actionButtons = document.querySelectorAll('.dp-music-btn[data-action]');
 
         if (this.playPauseBtn && this.playPauseIcon) {
             this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
-        }
-        if (this.muteBtn && this.muteIcon) {
-            this.muteBtn.addEventListener('click', () => this.toggleMute());
         }
         this.actionButtons.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -491,35 +584,19 @@ class MusicControls {
     }
 
     togglePlayPause() {
-        if (this.isPlaying) {
-            this.isPlaying = false;
-            if (this.playPauseIcon) this.playPauseIcon.src = 'Content/CurrIcon.png';
-            this.triggerCommand('pause');
-        } else {
-            this.isPlaying = true;
-            if (this.playPauseIcon) this.playPauseIcon.src = 'Content/PauseIcon.png';
-            this.triggerCommand('play');
-        }
-    }
-
-    toggleMute() {
-        const musicSlider = Manager.getSliderByCode('1=music');
-        if (musicSlider) {
-            musicSlider.toggleMute();
-            this.setMuteState(musicSlider.isMuted);
-        } else {
-            this.setMuteState(!this.isMuted);
-        }
-        // Mute is handled by the music slider; no command sent here
+        const nextPlaying = !this.isPlaying;
+        this.setPlayingState(nextPlaying);
+        this.triggerCommand(nextPlaying ? 'play' : 'pause');
     }
 
     setMuteState(isMuted) {
         this.isMuted = isMuted;
-        if (this.muteIcon) {
-            this.muteIcon.src = isMuted ? 'Content/MusicOffIcon.png' : 'Content/MusicIcon.png';
-        }
-        if (this.muteBtn) {
-            this.muteBtn.classList.toggle('dp-muted', isMuted);
+    }
+
+    setPlayingState(isPlaying) {
+        this.isPlaying = isPlaying;
+        if (this.playPauseIcon) {
+            this.playPauseIcon.src = isPlaying ? 'Content/PauseIcon.png' : 'Content/CurrIcon.png';
         }
     }
 }

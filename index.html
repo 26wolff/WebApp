@@ -74,10 +74,16 @@
       </div>
       <div id="dp-Music" class="dp-section">
         <div class="dp-music-panel">
+          <div class="dp-music-now">
+            <div class="dp-music-thumb-wrap">
+              <img id="dp-music-thumb" alt="Album art" />
+            </div>
+            <div class="dp-music-meta">
+              <div class="dp-music-title" id="dp-music-title">Nothing playing</div>
+              <div class="dp-music-artist" id="dp-music-artist">—</div>
+            </div>
+          </div>
           <div class="dp-music-cluster">
-            <button class="dp-music-btn dp-music-btn-aux" type="button" data-action="run">
-              <img src="Content/MusicRunIcon.png" alt="Run Music" />
-            </button>
             <div class="dp-music-controls">
               <button class="dp-music-btn" type="button" data-action="prev">
                 <img src="Content/BackIcon.png" alt="Previous" />
@@ -88,10 +94,11 @@
               <button class="dp-music-btn" type="button" data-action="next">
                 <img src="Content/ForwardIcon.png" alt="Next" />
               </button>
+              <button class="dp-music-btn dp-music-btn-aux dp-music-open-btn" type="button" data-action="run">
+                <img src="Content/MusicRunIcon.png" alt="Run Music" />
+              </button>
             </div>
-            <button class="dp-music-btn dp-music-btn-aux" type="button" id="dp-music-mute">
-              <img src="Content/MusicIcon.png" alt="Mute" id="dp-music-mute-icon" />
-            </button>
+            <div id="dp-music-slider" class="dp-music-slider"></div>
           </div>
         </div>
       </div>
@@ -121,6 +128,7 @@
 
         <div class="dp-apps-panels">
           <div class="dp-apps-panel dp-apps-panel-apps">
+            <div class="dp-apps-list"></div>
             <div class="dp-empty-state">
               <img
                 src="Content/AppsIcon.png"
@@ -131,6 +139,7 @@
             </div>
           </div>
           <div class="dp-apps-panel dp-apps-panel-games">
+            <div class="dp-apps-list"></div>
             <div class="dp-empty-state">
               <img
                 src="Content/GamesIcon.png"
