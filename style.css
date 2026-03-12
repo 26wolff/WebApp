@@ -307,7 +307,7 @@ body[data-theme="synth"] {
 }
 
 .dp-home-clock {
-    font-size: 200px;
+    font-size: 175px;
     font-weight: 700;
     letter-spacing: 4px;
     font-family: var(--home-font);
@@ -504,7 +504,7 @@ body[data-theme="synth"] {
     border: 1px solid transparent;
     border-radius: 16px;
     color: white;
-
+    cursor:none;
     opacity: 0.7;
     transition: transform 0.2s, opacity 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
