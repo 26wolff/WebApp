@@ -6,6 +6,7 @@ html, body {
     font-family: ui-sans-serif, system-ui, sans-serif;
     overflow: hidden;
     user-select: none;
+    cursor: none;
     background-color: var(--bg, #09090b);
 }
 
