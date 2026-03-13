@@ -236,7 +236,7 @@ export const Manager = new class {
             if (titleEl) titleEl.textContent = 'Nothing playing';
             if (artistEl) artistEl.textContent = '—';
             if (subEl) subEl.textContent = '—';
-            if (thumbEl) thumbEl.src = 'Content/NoSongIcon.png';
+            if (thumbEl) thumbEl.src = URL.createObjectURL('Content/NoSongIcon.png');
             if (this.musicControls) this.musicControls.setPlayingState(false);
             return;
         }
@@ -248,7 +248,7 @@ export const Manager = new class {
             if (thumb) {
                 thumbEl.src = thumb.startsWith('data:') ? thumb : `data:image/png;base64,${thumb}`;
             } else {
-                thumbEl.src = 'Content/NoSongIcon.png';
+                thumbEl.src = URL.createObjectURL('Content/NoSongIcon.png');
             }
         }
 

@@ -1,9 +1,0 @@
-.music redesign
-    live music what is playing
-    updated working buttons
-
-.apps updates
-    use steam api for steam games icon
-    add a scroll bar on sliders
-    for apps update to make it look nice
-    look in applications folder
