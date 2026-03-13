@@ -1,4 +1,4 @@
-// manager.js
+﻿// manager.js
 export const Manager = new class {
     constructor() {
         // ===== CONFIGURATION =====
@@ -14,8 +14,11 @@ export const Manager = new class {
 
         this.sliderData = [];
         this.sliders = []; // list of Slider instances
+        this.sliderGroups = new Map();
         this.appData = {};
         this.gameData = {};
+        this.musicPrivacyEnabled = false;
+        this.lastMusicInfo = null;
         this.startup();
     }
 
@@ -24,7 +27,7 @@ export const Manager = new class {
         this.loadLocalSliderData();
         this.connectWebSocket();
         this.updateTrayIconsConnection();
-        
+
     }
 
     loadLocalSliderData() {
@@ -120,6 +123,7 @@ export const Manager = new class {
     updateSliderData(packet) {
         this.sliderData = packet;
         console.log("[UPDATE] Sliders:", this.sliderData);
+        this.sliderGroups = new Map();
         this.renderSliders();
         this.renderMusicSlider();
     }
@@ -207,7 +211,28 @@ export const Manager = new class {
     }
 
     getSliderByCode(code) {
-        return this.sliders.find(slider => slider.code === code);
+        const slider = this.sliders.find(sl => sl.code === code);
+        if (slider) return slider;
+        const group = this.sliderGroups.get(code);
+        return group && group.length ? group[0] : undefined;
+    }
+
+    registerSlider(slider) {
+        const list = this.sliderGroups.get(slider.code);
+        if (list) {
+            list.push(slider);
+        } else {
+            this.sliderGroups.set(slider.code, [slider]);
+        }
+    }
+
+    syncSliderState(source) {
+        const list = this.sliderGroups.get(source.code);
+        if (!list || list.length < 2) return;
+        for (const slider of list) {
+            if (slider === source) continue;
+            slider.updateFromPeer(source);
+        }
     }
 
     handleMusicCommand(name) {
@@ -227,36 +252,70 @@ export const Manager = new class {
     }
 
     updateMusicNowPlaying(info) {
+        this.lastMusicInfo = info;
+
         const titleEl = document.getElementById('dp-music-title');
         const artistEl = document.getElementById('dp-music-artist');
         const subEl = document.getElementById('dp-music-sub');
         const thumbEl = document.getElementById('dp-music-thumb');
 
+        const status = (info?.status || '').toLowerCase();
+        const isPlaying = status === 'playing';
+        const hasMedia = status === 'playing' || status === 'paused';
+
+        // PRIVACY MODE
+        if (this.musicPrivacyEnabled) {
+
+            // if nothing playing show normal message
+            if (!info || !hasMedia){
+                if (titleEl) titleEl.textContent = 'Nothing playing';
+                if (artistEl) artistEl.textContent = '—';
+                if (subEl) subEl.textContent = '';
+                if (thumbEl) thumbEl.src = 'Content/NoSongIcon.png';
+                if (this.musicControls) this.musicControls.setPlayingState(false);
+                return;
+            }
+
+            // something playing but hidden
+            if (titleEl) titleEl.textContent = 'Now playing';
+            if (artistEl) artistEl.textContent = 'Audio';
+            if (subEl) subEl.textContent = '';
+            if (thumbEl) thumbEl.src = 'Content/MusicRunIcon.png';
+            if (this.musicControls) this.musicControls.setPlayingState(true);
+            return;
+        }
+
+        // NORMAL MODE
         if (!info) {
             if (titleEl) titleEl.textContent = 'Nothing playing';
             if (artistEl) artistEl.textContent = '—';
-            if (subEl) subEl.textContent = '—';
-            if (thumbEl) thumbEl.src = URL.createObjectURL('Content/NoSongIcon.png');
+            if (subEl) subEl.textContent = '';
+            if (thumbEl) thumbEl.src = 'Content/NoSongIcon.png';
             if (this.musicControls) this.musicControls.setPlayingState(false);
             return;
         }
 
         if (titleEl) titleEl.textContent = info.title || 'Unknown';
         if (artistEl) artistEl.textContent = info.artist || '—';
+
         if (thumbEl) {
             const thumb = info.thumbnail || '';
             if (thumb) {
-                thumbEl.src = thumb.startsWith('data:') ? thumb : `data:image/png;base64,${thumb}`;
+                thumbEl.src = thumb.startsWith('data:')
+                    ? thumb
+                    : `data:image/png;base64,${thumb}`;
             } else {
-                thumbEl.src = URL.createObjectURL('Content/NoSongIcon.png');
+                thumbEl.src = 'Content/NoSongIcon.png';
             }
         }
 
         if (this.musicControls) {
-            const status = (info.status || '').toLowerCase();
-            const isPlaying = status === 'playing';
             this.musicControls.setPlayingState(isPlaying);
         }
+    }
+    setMusicPrivacy(enabled) {
+        this.musicPrivacyEnabled = !!enabled;
+        this.updateMusicNowPlaying(this.lastMusicInfo);
     }
 };
 
@@ -284,6 +343,7 @@ class Slider {
             this.prevVolume = this.volume;
         }
         this.createElement(parentContainer);
+        Manager.registerSlider(this);
     }
 
     createElement(parent) {
@@ -321,7 +381,7 @@ class Slider {
     }
 
     getIconFile() {
-        let type = this.isMuted? this.muteIcon : this.iconType;
+        let type = this.isMuted ? this.muteIcon : this.iconType;
         return `Content/${type}.png`;
     }
 
@@ -353,6 +413,7 @@ class Slider {
         this.updateValueDisplay();
         this.saveState();
         this.sendMessage();
+        Manager.syncSliderState(this);
     }
 
     toggleMute() {
@@ -374,11 +435,12 @@ class Slider {
         this.updateValueDisplay();
         this.saveState();
         this.sendMessage();
+        Manager.syncSliderState(this);
     }
 
     updateIcon() {
         this.iconImg.src = this.getIconFile();
-        
+
         // Update muted class on container
         if (this.isMuted) {
             this.container.classList.add('dp-muted');
@@ -402,6 +464,18 @@ class Slider {
         this.updateIcon();
         this.updateValueDisplay();
         this.sendMessage();
+        Manager.syncSliderState(this);
+    }
+
+    updateFromPeer(source) {
+        const value = parseInt(source.input.value);
+        this.isMuted = source.isMuted;
+        this.manualZero = value === 0;
+        if (value > 0) this.prevVolume = value;
+        this.input.value = value;
+        this.updateIcon();
+        this.updateValueDisplay();
+        this.saveState();
     }
 
     sendMessage() {
@@ -634,6 +708,26 @@ window.addEventListener('load', () => {
         Manager.updateMusicMuteButton(musicSlider.isMuted);
     }
 
+    const privacyToggle = document.getElementById('dp-setting-remove-video-info');
+    if (privacyToggle) {
+        const privacyCard = privacyToggle.closest('.dp-setting-toggle');
+        const saved = localStorage.getItem('dp-remove-video-info') === '1';
+        privacyToggle.checked = saved;
+        Manager.setMusicPrivacy(saved);
+        privacyToggle.addEventListener('change', () => {
+            const enabled = privacyToggle.checked;
+            localStorage.setItem('dp-remove-video-info', enabled ? '1' : '0');
+            Manager.setMusicPrivacy(enabled);
+        });
+        if (privacyCard) {
+            privacyCard.addEventListener('click', (event) => {
+                if (event.target === privacyToggle) return;
+                privacyToggle.checked = !privacyToggle.checked;
+                privacyToggle.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+    }
+
     const clockEl = document.getElementById('dp-home-clock');
     const dateEl = document.getElementById('dp-home-date');
     if (clockEl && dateEl) {
@@ -652,3 +746,9 @@ window.addEventListener('load', () => {
         setInterval(updateClock, 1000);
     }
 });
+
+
+
+
+
+
