@@ -170,6 +170,7 @@ export const Manager = new class {
         if (!musicSlider) return;
 
         new Slider(musicSlider, host, this.ws);
+        this.renderedMusicSlider = true;
     }
 
     renderSliders() {
@@ -286,6 +287,8 @@ export const Manager = new class {
 
     updateMusicNowPlaying(info) {
         this.lastMusicInfo = info;
+
+        if (!this.domReady) return; // defer until DOM exists
 
         const titleEl = document.getElementById('dp-music-title');
         const artistEl = document.getElementById('dp-music-artist');
@@ -652,7 +655,7 @@ function buildIconSources(icon, fallbackIcon) {
     }
 
     sources.push(fallbackIcon);
-    return sources;
+    return sources.filter(src => typeof src === 'string' && src.length > 0);
 }
 
 function setIconImage(imgEl, icon, fallbackIcon) {
