@@ -235,9 +235,10 @@
         );
 
         // Add selected class to clicked icon
-        const selectedIcon = document.querySelector(
+        const selectedIconImg = document.querySelector(
           `#${idToShow}Icon`,
-        )?.parentElement;
+        );
+        const selectedIcon = selectedIconImg ? selectedIconImg.parentElement : null;
         if (selectedIcon) selectedIcon.classList.add("dp-selected");
       }
 
@@ -264,7 +265,7 @@
         showAppsSection("games");
       };
     </script>
-    <link rel="stylesheet" href="style.css" />
-    <script src="main.js" type="module"></script>
+    <link rel="stylesheet" href="style.css?v=20260325" />
+    <script src="main.js?v=20260325" type="module"></script>
   </body>
 </html>

@@ -43,18 +43,46 @@ export const Manager = new class {
     }
 
     loadLocalSliderData() {
-        fetch('sliders.json')
-            .then(res => res.json())
-            .then(data => {
-                const list = (data && Array.isArray(data.sliders)) ? data.sliders : this.DEFAULT_SLIDERS;
-                this.updateSliderData(list);
-                this.renderAll();
-            })
-            .catch(err => {
+        const applySliderPayload = (data) => {
+            const list = (data && Array.isArray(data.sliders)) ? data.sliders : this.DEFAULT_SLIDERS;
+            this.updateSliderData(list);
+            this.renderAll();
+        };
+
+        const loadViaXhr = () => {
+            try {
+                const req = new XMLHttpRequest();
+                req.open('GET', 'sliders.json', true);
+                req.onreadystatechange = () => {
+                    if (req.readyState !== 4) return;
+                    if (req.status >= 200 && req.status < 300 || req.status === 0) {
+                        try {
+                            applySliderPayload(JSON.parse(req.responseText));
+                        } catch (err) {
+                            console.error('Failed to parse sliders.json, using defaults:', err);
+                            applySliderPayload({ sliders: this.DEFAULT_SLIDERS });
+                        }
+                        return;
+                    }
+                    console.error('Failed to load sliders.json, using defaults:', req.status);
+                    applySliderPayload({ sliders: this.DEFAULT_SLIDERS });
+                };
+                req.send();
+            } catch (err) {
                 console.error('Failed to load sliders.json, using defaults:', err);
-                this.updateSliderData(this.DEFAULT_SLIDERS);
-                this.renderAll();
-            });
+                applySliderPayload({ sliders: this.DEFAULT_SLIDERS });
+            }
+        };
+
+        if (typeof fetch === 'function') {
+            fetch('sliders.json')
+                .then(res => res.json())
+                .then(applySliderPayload)
+                .catch(() => loadViaXhr());
+            return;
+        }
+
+        loadViaXhr();
     }
 
     connectWebSocket() {
@@ -119,9 +147,16 @@ export const Manager = new class {
     }
 
     normalizeAppItem(item) {
-        const id = item?.id ?? item?.Id ?? item?.appId ?? null;
-        const name = item?.name ?? item?.Name ?? item?.AppName ?? item?.appName ?? item?.displayName ?? '';
-        const icon = item?.icon ?? item?.Icon ?? '';
+        const id = firstDefined(item && item.id, item && item.Id, item && item.appId, null);
+        const name = firstDefined(
+            item && item.name,
+            item && item.Name,
+            item && item.AppName,
+            item && item.appName,
+            item && item.displayName,
+            ''
+        );
+        const icon = firstDefined(item && item.icon, item && item.Icon, '');
         return { id, name, icon };
     }
 
@@ -132,7 +167,6 @@ export const Manager = new class {
         this.appData = list
             .map(item => this.normalizeAppItem(item))
             .filter(a => a && a.name);
-        this.appData.sort((a,b) => a.name.localeCompare(b.name));
         console.log("[UPDATE] Applications:", this.appData);
         this.renderApps();
     }
@@ -144,7 +178,6 @@ export const Manager = new class {
         this.gameData = list
             .map(item => this.normalizeAppItem(item))
             .filter(a => a && a.name);
-        this.gameData.sort((a,b) => a.name.localeCompare(b.name));
         console.log("[UPDATE] Games:", this.gameData);
         this.renderGames();
     }
@@ -166,7 +199,7 @@ export const Manager = new class {
         if (!host) return;
         host.innerHTML = '';
 
-        const musicSlider = this.sliderData.find(sl => sl.code === '1=music');
+        const musicSlider = findByCode(this.sliderData, '1=music');
         if (!musicSlider) return;
 
         new Slider(musicSlider, host, this.ws);
@@ -245,7 +278,7 @@ export const Manager = new class {
     }
 
     getSliderByCode(code) {
-        const slider = this.sliders.find(sl => sl.code === code);
+        const slider = findByCode(this.sliders, code);
         if (slider) return slider;
         const group = this.sliderGroups.get(code);
         return group && group.length ? group[0] : undefined;
@@ -295,7 +328,7 @@ export const Manager = new class {
         const subEl = document.getElementById('dp-music-sub');
         const thumbEl = document.getElementById('dp-music-thumb');
 
-        const status = (info?.status || '').toLowerCase();
+        const status = String(info && info.status || '').toLowerCase();
         const isPlaying = status === 'playing';
         const hasMedia = status === 'playing' || status === 'paused';
 
@@ -335,10 +368,10 @@ export const Manager = new class {
         if (artistEl) artistEl.textContent = info.artist || '—';
 
         if (thumbEl) {
-            const thumb = info.thumbnail || '';
+            const thumb = info && info.thumbnail ? info.thumbnail : '';
             const validThumb = typeof thumb === 'string' && thumb.length > 0 && thumb !== 'undefined' && thumb !== 'null';
             if (validThumb) {
-                thumbEl.src = thumb.startsWith('data:')
+                thumbEl.src = startsWith(thumb, 'data:')
                     ? thumb
                     : `data:image/png;base64,${thumb}`;
             } else {
@@ -638,16 +671,16 @@ function buildIconSources(icon, fallbackIcon) {
         icon !== 'null';
 
     if (isValid) {
-        if (icon.startsWith('data:')) {
+        if (startsWith(icon, 'data:')) {
             sources.push(icon);
-        } else if (icon.startsWith('/9j/')) {
+        } else if (startsWith(icon, '/9j/')) {
             sources.push(`data:image/jpeg;base64,${icon}`);
-        } else if (icon.startsWith('UklG')) {
+        } else if (startsWith(icon, 'UklG')) {
             // WebP base64
             sources.push(`data:image/webp;base64,${icon}`);
-        } else if (icon.startsWith('iVBOR')) {
+        } else if (startsWith(icon, 'iVBOR')) {
             sources.push(`data:image/png;base64,${icon}`);
-        } else if (icon.startsWith('http') || icon.startsWith('//')) {
+        } else if (startsWith(icon, 'http') || startsWith(icon, '//')) {
             sources.push(icon);
         } else {
             sources.push(`data:image/png;base64,${icon}`);
@@ -656,6 +689,40 @@ function buildIconSources(icon, fallbackIcon) {
 
     sources.push(fallbackIcon);
     return sources.filter(src => typeof src === 'string' && src.length > 0);
+}
+
+function firstDefined() {
+    for (let i = 0; i < arguments.length; i++) {
+        const value = arguments[i];
+        if (value !== undefined && value !== null) return value;
+    }
+    return undefined;
+}
+
+function findByCode(list, code) {
+    if (!Array.isArray(list)) return undefined;
+    for (let i = 0; i < list.length; i++) {
+        const item = list[i];
+        if (item && item.code === code) return item;
+    }
+    return undefined;
+}
+
+function startsWith(value, prefix) {
+    return typeof value === 'string' && value.slice(0, prefix.length) === prefix;
+}
+
+function findClosestByClass(el, className) {
+    let current = el;
+    while (current) {
+        if (current.classList && current.classList.contains(className)) return current;
+        current = current.parentElement;
+    }
+    return null;
+}
+
+function pad2(value) {
+    return value < 10 ? `0${value}` : String(value);
 }
 
 function setIconImage(imgEl, icon, fallbackIcon) {
@@ -736,7 +803,14 @@ window.addEventListener('load', () => {
         }
         localStorage.setItem('dp-theme', theme || 'default');
         themeButtons.forEach(btn => btn.classList.remove('dp-selected'));
-        const active = Array.from(themeButtons).find(btn => btn.dataset.theme === (theme || 'default'));
+        let active = null;
+        for (let i = 0; i < themeButtons.length; i++) {
+            const btn = themeButtons[i];
+            if (btn.dataset.theme === (theme || 'default')) {
+                active = btn;
+                break;
+            }
+        }
         if (active) active.classList.add('dp-selected');
     };
 
@@ -755,7 +829,7 @@ window.addEventListener('load', () => {
 
     const privacyToggle = document.getElementById('dp-setting-remove-video-info');
     if (privacyToggle) {
-        const privacyCard = privacyToggle.closest('.dp-setting-toggle');
+        const privacyCard = findClosestByClass(privacyToggle, 'dp-setting-toggle');
         const saved = localStorage.getItem('dp-remove-video-info') === '1';
         privacyToggle.checked = saved;
         Manager.setMusicPrivacy(saved);
@@ -780,7 +854,7 @@ window.addEventListener('load', () => {
             const now = new Date();
             const rawHours = now.getHours();
             const hours = rawHours % 12 || 12;
-            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const minutes = pad2(now.getMinutes());
             const ampm = rawHours >= 12 ? 'PM' : 'AM';
             const time = `${hours}:${minutes} <span class="dp-home-ampm">${ampm}</span>`;
             const date = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: '2-digit' });
