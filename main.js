@@ -767,6 +767,37 @@ function installHiddenCursorGuards() {
     force();
 }
 
+function installBrightnessSafety(applyBrightness) {
+    let holdTimer = null;
+
+    const clearHold = () => {
+        if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+        }
+    };
+
+    const maybeStartHold = () => {
+        const current = parseInt(localStorage.getItem('dp-brightness') || '100', 10);
+        if (current >= 5) return;
+        clearHold();
+        holdTimer = setTimeout(() => {
+            applyBrightness(20);
+            holdTimer = null;
+        }, 4000);
+    };
+
+    document.addEventListener('pointerdown', maybeStartHold, true);
+    document.addEventListener('pointerup', clearHold, true);
+    document.addEventListener('pointercancel', clearHold, true);
+    document.addEventListener('touchstart', maybeStartHold, true);
+    document.addEventListener('touchend', clearHold, true);
+    document.addEventListener('touchcancel', clearHold, true);
+    document.addEventListener('mousedown', maybeStartHold, true);
+    document.addEventListener('mouseup', clearHold, true);
+    document.addEventListener('mouseleave', clearHold, true);
+}
+
 function setIconImage(imgEl, icon, fallbackIcon) {
     const sources = buildIconSources(icon, fallbackIcon);
     let index = 0;
@@ -861,12 +892,28 @@ window.addEventListener('load', () => {
         if (active) active.classList.add('dp-selected');
     };
 
+    const brightnessInput = document.getElementById('dp-setting-brightness');
+    const brightnessValue = document.getElementById('dp-setting-brightness-value');
+    const applyBrightness = (value) => {
+        const numeric = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
+        document.documentElement.style.setProperty('--dp-brightness', `${numeric}%`);
+        localStorage.setItem('dp-brightness', String(numeric));
+        if (brightnessInput) brightnessInput.value = String(numeric);
+        if (brightnessValue) brightnessValue.textContent = `${numeric}%`;
+    };
+
     const savedTheme = localStorage.getItem('dp-theme') || 'default';
     applyTheme(savedTheme);
+    applyBrightness(localStorage.getItem('dp-brightness') || '100');
+    installBrightnessSafety(applyBrightness);
 
     themeButtons.forEach(btn => {
         btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
     });
+
+    if (brightnessInput) {
+        brightnessInput.addEventListener('input', () => applyBrightness(brightnessInput.value));
+    }
 
     Manager.musicControls = new MusicControls();
     const musicSlider = Manager.getSliderByCode('1=music');

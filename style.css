@@ -35,6 +35,7 @@ input[type=range]::-ms-thumb {
 }
 
 :root {
+    --dp-brightness: 100%;
     --bg: #030405;
     --panel: #0c0d10;
     --panel-2: #101217;
@@ -64,6 +65,10 @@ input[type=range]::-ms-thumb {
     --home-glow-enabled: 1;
     --home-grid-opacity: .35;
     --home-grid-size: 48px
+}
+
+body {
+    filter: brightness(var(--dp-brightness));
 }
 
 body[data-theme="graphite"] {
@@ -284,7 +289,7 @@ body[data-theme="synth"] {
     justify-content: center;
     gap: 12px;
     color: var(--text);
-    background: radial-gradient(1200px 600px at 50% 20%, color-mix(in srgb, var(--panel) 70%, transparent), transparent 70%), radial-gradient(900px 500px at 60% 70%, color-mix(in srgb, var(--panel-2) 65%, transparent), transparent 70%), var(--bg);
+    background: radial-gradient(1200px 600px at 50% 20%, color-mix(in srgb, #000 92%, var(--panel)), transparent 70%), radial-gradient(900px 500px at 60% 70%, color-mix(in srgb, #000 90%, var(--panel-2)), transparent 70%), #010101;
     overflow: hidden;
     z-index: 2
 }
@@ -294,7 +299,7 @@ body[data-theme="synth"] {
     position: absolute;
     inset: 0;
     background: radial-gradient(800px 400px at 50% 10%, var(--home-glow), transparent 70%);
-    opacity: .6;
+    opacity: .15;
     mix-blend-mode: screen;
     pointer-events: none;
     animation: dp-glow-breathe 10s ease-in-out infinite
@@ -307,7 +312,7 @@ body[data-theme="synth"] {
     font-family: var(--home-font);
     white-space: nowrap;
     line-height: 1;
-    text-shadow: 0 0 calc(var(--home-shadow) * 1px) color-mix(in srgb, var(--home-glow) calc(100% * var(--home-glow-enabled)), transparent), 0 0 calc(var(--home-shadow) * 2px) color-mix(in srgb, var(--home-glow-strong) calc(100% * var(--home-glow-enabled)), transparent);
+    text-shadow: 0 0 calc(var(--home-shadow) * .45px) color-mix(in srgb, var(--home-glow) calc(55% * var(--home-glow-enabled)), transparent), 0 0 calc(var(--home-shadow) * .85px) color-mix(in srgb, var(--home-glow-strong) calc(35% * var(--home-glow-enabled)), transparent);
     animation: dp-clock-pulse 6s ease-in-out infinite
 }
 
@@ -323,12 +328,12 @@ body[data-theme="synth"] {
     font-size: 26px;
     letter-spacing: 2px;
     text-transform: uppercase;
-    opacity: .85;
+    opacity: .72;
     font-family: var(--home-font);
     animation: dp-date-float 8s ease-in-out infinite;
     padding: 8px 18px;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--panel-2) 85%, transparent);
+    background: color-mix(in srgb, #000 72%, var(--panel-2));
     border: 1px solid var(--panel-border);
     box-shadow: inset 0 0 0 1px #ffffff08
 }
@@ -690,6 +695,73 @@ body[data-theme="synth"] {
     border: 1px solid var(--card-border);
     border-radius: 16px;
     cursor: none
+}
+
+.dp-setting-brightness {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.dp-setting-brightness-input {
+    flex: 1;
+    height: 18px;
+    border-radius: 10px;
+    accent-color: var(--accent);
+    transition: all .2s ease-in-out;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: none !important;
+}
+
+.dp-setting-brightness-value {
+    width: 64px;
+    text-align: right;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    opacity: .85;
+}
+
+.dp-setting-brightness-input::-webkit-slider-runnable-track {
+    background: var(--slider-track);
+    border-radius: 10px;
+    height: 18px;
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.dp-setting-brightness-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 52px;
+    height: 52px;
+    margin-top: -18px;
+    border-radius: 18px;
+    background: var(--card);
+    border: 3px solid var(--accent);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: none !important;
+}
+
+.dp-setting-brightness-input::-moz-range-track {
+    background: var(--slider-track);
+    border-radius: 10px;
+    height: 18px;
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.dp-setting-brightness-input::-moz-range-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+    background: var(--card);
+    border: 3px solid var(--accent);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: none !important;
 }
 
 .dp-theme-options {
