@@ -19,12 +19,15 @@ export const Manager = new class {
         this.gameData = {};
         this.musicPrivacyEnabled = false;
         this.lastMusicInfo = null;
+        this.domReady = false;
         this.startup();
     }
 
     startup() {
         this.loadLocalSliderData();
         document.addEventListener("DOMContentLoaded", () => {
+            this.domReady = true;
+            this.renderAll();
             this.connectWebSocket();
         });
         
@@ -37,6 +40,7 @@ export const Manager = new class {
             .then(res => res.json())
             .then(data => {
                 this.updateSliderData(data.sliders || []);
+                this.renderAll();
             })
             .catch(err => console.error('Failed to load sliders.json:', err));
     }
@@ -62,7 +66,8 @@ export const Manager = new class {
                 for (const key in msg) {
                     if (!msg.hasOwnProperty(key)) continue;
                     const value = msg[key];
-                    switch (key) {
+                    const k = key.toLowerCase();
+                    switch (k) {
                         case "sliders": this.updateSliderData(value); break;
                         case "apps": this.updateAppData(value); break;
                         case "applications": this.updateAppData(value); break; // backend variant
@@ -748,6 +753,16 @@ window.addEventListener('load', () => {
         setInterval(updateClock, 1000);
     }
 });
+
+// helper to re-render once DOM is ready after data arrived early
+Manager.renderAll = function() {
+    if (!this.domReady) return;
+    this.renderSliders();
+    this.renderMusicSlider();
+    this.renderApps();
+    this.renderGames();
+    if (this.lastMusicInfo) this.updateMusicNowPlaying(this.lastMusicInfo);
+};
 
 
 
