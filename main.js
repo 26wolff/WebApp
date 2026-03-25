@@ -23,7 +23,6 @@ export const Manager = new class {
     }
 
     startup() {
-        //this.loadLocalData();
         this.loadLocalSliderData();
         document.addEventListener("DOMContentLoaded", () => {
             this.connectWebSocket();
@@ -42,16 +41,6 @@ export const Manager = new class {
             .catch(err => console.error('Failed to load sliders.json:', err));
     }
 
-    loadLocalData() {
-        fetch('data.json')
-            .then(res => res.json())
-            .then(data => {
-                this.updateAppData(data.apps || []);
-                this.updateGameData(data.games || []);
-            })
-            .catch(err => console.error('Failed to load data.json:', err));
-    }
-
     connectWebSocket() {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
 
@@ -63,7 +52,7 @@ export const Manager = new class {
             clearTimeout(this.reconnectTimer);
             this.connected = true;
             this.updateTrayIconsConnection();
-            this.sendPacket("10=applications=get");
+            this.requestInitialData();
         };
 
         this.ws.onmessage = (event) => {
@@ -76,6 +65,7 @@ export const Manager = new class {
                     switch (key) {
                         case "sliders": this.updateSliderData(value); break;
                         case "apps": this.updateAppData(value); break;
+                        case "applications": this.updateAppData(value); break; // backend variant
                         case "games": this.updateGameData(value); break;
                         case "music": this.updateMusicNowPlaying(value); break;
                         default: this[key] = value; console.log(`[UPDATE] ${key} updated`, value); break;
@@ -94,6 +84,15 @@ export const Manager = new class {
         };
 
         this.ws.onerror = (err) => console.error("[WS ERROR]", err);
+    }
+
+    requestInitialData() {
+        // ask server for current state so UI is hydrated after fresh connect/reconnect
+        const packets = [
+            "10=applications=get",
+            "10=music=get"
+        ];
+        packets.forEach(p => this.sendPacket(p));
     }
 
     sendPacket(value) {
@@ -209,8 +208,8 @@ export const Manager = new class {
     }
 
     reloadLocalData() {
-        this.loadLocalData();
         this.loadLocalSliderData();
+        this.requestInitialData();
     }
 
     getSliderByCode(code) {
