@@ -25,7 +25,10 @@ export const Manager = new class {
     startup() {
         //this.loadLocalData();
         this.loadLocalSliderData();
-        this.connectWebSocket();
+        document.addEventListener("DOMContentLoaded", () => {
+            this.connectWebSocket();
+        });
+        
         this.updateTrayIconsConnection();
 
     }
