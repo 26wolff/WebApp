@@ -333,7 +333,8 @@ export const Manager = new class {
 
         if (thumbEl) {
             const thumb = info.thumbnail || '';
-            if (thumb) {
+            const validThumb = typeof thumb === 'string' && thumb.length > 0 && thumb !== 'undefined' && thumb !== 'null';
+            if (validThumb) {
                 thumbEl.src = thumb.startsWith('data:')
                     ? thumb
                     : `data:image/png;base64,${thumb}`;
@@ -381,6 +382,8 @@ class Slider {
 
     createElement(parent) {
         const iconFile = this.isMuted && this.muteIcon ? this.muteIcon : this.getIconFile();
+        const vol = Number.isFinite(this.volume) ? this.volume : 0;
+        const name = this.name || '';
 
         this.container = document.createElement('div');
         this.container.className = 'dp-slider';
@@ -390,11 +393,11 @@ class Slider {
         this.container.innerHTML = `
             <div class="dp-slider-meta">
                 <div class="dp-slider-icon"><img src="${iconFile}" class="dp-icon" /></div>
-                <span class="dp-slider-label">${this.name}</span>
+                <span class="dp-slider-label">${name}</span>
             </div>
             <div class="dp-slider-control">
-                <input type="range" min="0" max="100" value="${this.volume}" class="dp-slider-input">
-                <span class="dp-slider-value">${this.isMuted || this.volume === 0 ? 'OFF' : this.volume}</span>
+                <input type="range" min="0" max="100" value="${vol}" class="dp-slider-input">
+                <span class="dp-slider-value">${this.isMuted || vol === 0 ? 'OFF' : vol}</span>
             </div>
         `;
         parent.appendChild(this.container);
@@ -415,6 +418,7 @@ class Slider {
 
     getIconFile() {
         let type = this.isMuted ? this.muteIcon : this.iconType;
+        if (!type) type = 'SoundIcon';
         return `Content/${type}.png`;
     }
 
@@ -624,8 +628,13 @@ class GameTile {
 
 function buildIconSources(icon, fallbackIcon) {
     const sources = [];
-    const hasIcon = typeof icon === 'string' && icon.length > 0;
-    if (hasIcon) {
+    const isValid =
+        typeof icon === 'string' &&
+        icon.length > 0 &&
+        icon !== 'undefined' &&
+        icon !== 'null';
+
+    if (isValid) {
         if (icon.startsWith('data:')) {
             sources.push(icon);
         } else if (icon.startsWith('/9j/')) {
