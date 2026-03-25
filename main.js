@@ -277,6 +277,27 @@ export const Manager = new class {
         this.requestInitialData();
     }
 
+    getMusicLauncherId() {
+        const preferredNames = [
+            'youtube music',
+            'google music',
+            'yt music',
+            'music'
+        ];
+
+        const items = Array.isArray(this.appData) ? this.appData : [];
+        for (let i = 0; i < preferredNames.length; i++) {
+            const target = preferredNames[i];
+            for (let j = 0; j < items.length; j++) {
+                const item = items[j];
+                const name = String(item && item.name || '').toLowerCase();
+                if (name && name.indexOf(target) !== -1) return item.id;
+            }
+        }
+
+        return null;
+    }
+
     getSliderByCode(code) {
         const slider = findByCode(this.sliders, code);
         if (slider) return slider;
@@ -597,6 +618,7 @@ class AppTile {
         this.container = document.createElement('button');
         this.container.className = 'dp-app-item';
         this.container.type = 'button';
+        this.container.draggable = false;
 
         this.container.innerHTML = `
             <img class="dp-app-item-icon" alt="${this.name}" />
@@ -604,6 +626,7 @@ class AppTile {
         `;
 
         const img = this.container.querySelector('img');
+        img.draggable = false;
         setIconImage(img, this.icon, this.fallbackIcon);
 
         parent.appendChild(this.container);
@@ -636,6 +659,7 @@ class GameTile {
         this.container = document.createElement('button');
         this.container.className = 'dp-app-item';
         this.container.type = 'button';
+        this.container.draggable = false;
 
         this.container.innerHTML = `
             <img class="dp-app-item-icon" alt="${this.name}" />
@@ -643,6 +667,7 @@ class GameTile {
         `;
 
         const img = this.container.querySelector('img');
+        img.draggable = false;
         setIconImage(img, this.icon, this.fallbackIcon);
 
         parent.appendChild(this.container);
@@ -725,6 +750,23 @@ function pad2(value) {
     return value < 10 ? `0${value}` : String(value);
 }
 
+function applyHiddenCursor() {
+    const hidden = 'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==") 0 0, none';
+    document.documentElement.style.cursor = hidden;
+    document.body.style.cursor = hidden;
+}
+
+function installHiddenCursorGuards() {
+    const force = () => applyHiddenCursor();
+    const events = ['mousemove', 'mousedown', 'mouseup', 'pointermove', 'pointerdown', 'pointerup', 'touchstart', 'touchmove', 'input'];
+
+    for (let i = 0; i < events.length; i++) {
+        document.addEventListener(events[i], force, true);
+    }
+
+    force();
+}
+
 function setIconImage(imgEl, icon, fallbackIcon) {
     const sources = buildIconSources(icon, fallbackIcon);
     let index = 0;
@@ -763,7 +805,10 @@ class MusicControls {
 
     triggerCommand(name) {
         if (name === 'run') {
-            Manager.sendPacket('11=1675214580=run');
+            const appId = Manager.getMusicLauncherId();
+            if (appId !== null && appId !== undefined) {
+                Manager.sendPacket(`11=${appId}=run`);
+            }
             return;
         }
         Manager.handleMusicCommand(name);
@@ -788,6 +833,8 @@ class MusicControls {
 }
 
 window.addEventListener('load', () => {
+    installHiddenCursorGuards();
+
     const reloadPageBtn = document.getElementById('dp-setting-reload-page');
     if (reloadPageBtn) {
         reloadPageBtn.addEventListener('click', () => window.location.reload());
