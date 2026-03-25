@@ -4,7 +4,7 @@ export const Manager = new class {
         // ===== CONFIGURATION =====
         this.SERVER_IP = "192.168.2.175";
         this.SERVER_PORT = "3000";
-        // ==========================
+        // ========================== 
 
         this.micTimeout;
         this.micMuted = false;
