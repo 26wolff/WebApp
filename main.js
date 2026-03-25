@@ -20,6 +20,13 @@ export const Manager = new class {
         this.musicPrivacyEnabled = false;
         this.lastMusicInfo = null;
         this.domReady = false;
+        this.DEFAULT_SLIDERS = [
+            { id: "a1", name: "Main Volume", icon: "SoundIcon", muteIcon: "SoundOffIcon", code: "0=main", volume: 80, is_muted: false },
+            { id: "a2", name: "Current", icon: "CurrIcon", muteIcon: "CurrOffIcon", code: "1=current_app", volume: 80, is_muted: false },
+            { id: "a3", name: "Music", icon: "MusicIcon", muteIcon: "MusicOffIcon", code: "1=music", volume: 50, is_muted: false },
+            { id: "a4", name: "Calls", icon: "CallIcon", muteIcon: "CallOffIcon", code: "1=calls", volume: 50, is_muted: false },
+            { id: "a5", name: "Microphone", icon: "MicIcon", muteIcon: "MicOffIcon", code: "0=mic", volume: 50, is_muted: false },
+        ];
         this.startup();
     }
 
@@ -39,10 +46,15 @@ export const Manager = new class {
         fetch('sliders.json')
             .then(res => res.json())
             .then(data => {
-                this.updateSliderData(data.sliders || []);
+                const list = (data && Array.isArray(data.sliders)) ? data.sliders : this.DEFAULT_SLIDERS;
+                this.updateSliderData(list);
                 this.renderAll();
             })
-            .catch(err => console.error('Failed to load sliders.json:', err));
+            .catch(err => {
+                console.error('Failed to load sliders.json, using defaults:', err);
+                this.updateSliderData(this.DEFAULT_SLIDERS);
+                this.renderAll();
+            });
     }
 
     connectWebSocket() {
@@ -107,28 +119,42 @@ export const Manager = new class {
     }
 
     normalizeAppItem(item) {
-        const id = item?.id ?? item?.Id ?? null;
-        const name = item?.name ?? item?.Name ?? '';
+        const id = item?.id ?? item?.Id ?? item?.appId ?? null;
+        const name = item?.name ?? item?.Name ?? item?.AppName ?? item?.appName ?? item?.displayName ?? '';
         const icon = item?.icon ?? item?.Icon ?? '';
         return { id, name, icon };
     }
 
     updateAppData(packet) {
-        const list = Array.isArray(packet) ? packet : [];
-        this.appData = list.map(item => this.normalizeAppItem(item));
+        const list = Array.isArray(packet) ? packet
+            : (packet && Array.isArray(packet.apps)) ? packet.apps
+            : [];
+        this.appData = list
+            .map(item => this.normalizeAppItem(item))
+            .filter(a => a && a.name);
+        this.appData.sort((a,b) => a.name.localeCompare(b.name));
         console.log("[UPDATE] Applications:", this.appData);
         this.renderApps();
     }
 
     updateGameData(packet) {
-        const list = Array.isArray(packet) ? packet : [];
-        this.gameData = list.map(item => this.normalizeAppItem(item));
+        const list = Array.isArray(packet) ? packet
+            : (packet && Array.isArray(packet.games)) ? packet.games
+            : [];
+        this.gameData = list
+            .map(item => this.normalizeAppItem(item))
+            .filter(a => a && a.name);
+        this.gameData.sort((a,b) => a.name.localeCompare(b.name));
         console.log("[UPDATE] Games:", this.gameData);
         this.renderGames();
     }
 
     updateSliderData(packet) {
-        this.sliderData = packet;
+        const list = Array.isArray(packet) ? packet
+            : (packet && Array.isArray(packet.sliders)) ? packet.sliders
+            : this.sliderData;
+        if (!Array.isArray(list)) return;
+        this.sliderData = list;
         console.log("[UPDATE] Sliders:", this.sliderData);
         this.sliderGroups = new Map();
         this.renderSliders();
