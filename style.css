@@ -64,7 +64,19 @@ input[type=range]::-ms-thumb {
     --home-grid: #ffffff0d;
     --home-glow-enabled: 1;
     --home-grid-opacity: .35;
-    --home-grid-size: 48px
+    --home-grid-size: 48px;
+    --dp-hidden-cursor: url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==") 0 0, none
+}
+
+body.hide-cursor,
+body.hide-cursor *,
+body.hide-cursor *::before,
+body.hide-cursor *::after,
+body.hide-cursor input[type=range],
+body.hide-cursor input[type=range]::-webkit-slider-thumb,
+body.hide-cursor input[type=range]::-moz-range-thumb,
+body.hide-cursor input[type=range]::-ms-thumb {
+    cursor: var(--dp-hidden-cursor) !important
 }
 
 body {

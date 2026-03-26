@@ -750,21 +750,32 @@ function pad2(value) {
     return value < 10 ? `0${value}` : String(value);
 }
 
-function applyHiddenCursor() {
-    const hidden = 'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==") 0 0, none';
-    document.documentElement.style.cursor = hidden;
-    document.body.style.cursor = hidden;
-}
-
 function installHiddenCursorGuards() {
-    const force = () => applyHiddenCursor();
-    const events = ['mousemove', 'mousedown', 'mouseup', 'pointermove', 'pointerdown', 'pointerup', 'touchstart', 'touchmove', 'input'];
+    const body = document.body;
+    if (!body) return;
 
-    for (let i = 0; i < events.length; i++) {
-        document.addEventListener(events[i], force, true);
-    }
+    let lastScrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
 
-    force();
+    const hideCursor = () => {
+        body.classList.add('hide-cursor');
+    };
+
+    window.addEventListener('scroll', () => {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+        if (scrollTop < lastScrollTop) {
+            hideCursor();
+        } else {
+            hideCursor();
+        }
+        lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+    }, false);
+
+    document.addEventListener('scroll', hideCursor, true);
+    document.addEventListener('mousemove', hideCursor, true);
+    document.addEventListener('pointermove', hideCursor, true);
+    document.addEventListener('touchmove', hideCursor, true);
+
+    hideCursor();
 }
 
 function installBrightnessSafety(applyBrightness) {
@@ -944,14 +955,27 @@ window.addEventListener('load', () => {
     const clockEl = document.getElementById('dp-home-clock');
     const dateEl = document.getElementById('dp-home-date');
     if (clockEl && dateEl) {
+        const chicagoTimeFormatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Chicago',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+        const chicagoDateFormatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Chicago',
+            weekday: 'short',
+            month: 'short',
+            day: '2-digit'
+        });
+
         const updateClock = () => {
             const now = new Date();
-            const rawHours = now.getHours();
-            const hours = rawHours % 12 || 12;
-            const minutes = pad2(now.getMinutes());
-            const ampm = rawHours >= 12 ? 'PM' : 'AM';
+            const timeParts = chicagoTimeFormatter.formatToParts(now);
+            const hours = timeParts.find(part => part.type === 'hour')?.value ?? '--';
+            const minutes = timeParts.find(part => part.type === 'minute')?.value ?? '--';
+            const ampm = timeParts.find(part => part.type === 'dayPeriod')?.value?.toUpperCase() ?? '';
             const time = `${hours}:${minutes} <span class="dp-home-ampm">${ampm}</span>`;
-            const date = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: '2-digit' });
+            const date = chicagoDateFormatter.format(now);
             clockEl.innerHTML = time;
             dateEl.textContent = date;
         };
@@ -969,9 +993,5 @@ Manager.renderAll = function() {
     this.renderGames();
     if (this.lastMusicInfo) this.updateMusicNowPlaying(this.lastMusicInfo);
 };
-
-
-
-
 
 
