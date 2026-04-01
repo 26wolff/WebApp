@@ -362,6 +362,25 @@ export const Manager = new class {
         this.requestInitialData();
     }
 
+    reconnectNow() {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+        this.connected = false;
+        this.setConnectionState('reconnecting');
+
+        if (this.ws) {
+            try {
+                this.ws.onclose = null;
+                this.ws.close();
+            } catch (err) {
+                console.warn('[WS] Failed to close existing socket before reconnect:', err);
+            }
+            this.ws = null;
+        }
+
+        this.connectWebSocket();
+    }
+
     getMusicLauncherId() {
         const preferredNames = [
             'youtube music',
@@ -900,8 +919,15 @@ function installSwipeScroll(container) {
     let startScrollTop = 0;
     let dragging = false;
     let suppressClickUntil = 0;
+    let captured = false;
 
     const finishDrag = () => {
+        if (captured && activePointerId !== null && typeof container.releasePointerCapture === 'function') {
+            try {
+                container.releasePointerCapture(activePointerId);
+            } catch { }
+        }
+        captured = false;
         activePointerId = null;
         if (dragging) {
             suppressClickUntil = Date.now() + 250;
@@ -914,11 +940,7 @@ function installSwipeScroll(container) {
         if (event.pointerType === 'mouse' && event.button !== 0) return;
         if (event.target instanceof Element) {
             if (container.classList.contains('dp-settings-panel') &&
-                event.target.closest('button, input, label, .dp-setting-card, .dp-theme-option')) {
-                return;
-            }
-            if (container.classList.contains('dp-apps-list') &&
-                event.target.closest('button, .dp-app-item, .dp-game-item')) {
+                event.target.closest('input[type="range"]')) {
                 return;
             }
         }
@@ -928,12 +950,6 @@ function installSwipeScroll(container) {
         startY = event.clientY;
         startScrollTop = container.scrollTop;
         dragging = false;
-
-        if (typeof container.setPointerCapture === 'function') {
-            try {
-                container.setPointerCapture(event.pointerId);
-            } catch { }
-        }
     });
 
     container.addEventListener('pointermove', (event) => {
@@ -947,6 +963,12 @@ function installSwipeScroll(container) {
             if (Math.abs(deltaX) > Math.abs(deltaY)) return;
             dragging = true;
             container.classList.add('dp-drag-scrolling');
+            if (!captured && typeof container.setPointerCapture === 'function') {
+                try {
+                    container.setPointerCapture(event.pointerId);
+                    captured = true;
+                } catch { }
+            }
         }
 
         container.scrollTop = startScrollTop - deltaY;
@@ -1046,6 +1068,14 @@ window.addEventListener('load', () => {
     if (refreshAppsBtn) {
         refreshAppsBtn.addEventListener('click', () => Manager.sendPacket('10=applications=get'));
     }
+    const reconnectBtn = document.getElementById('dp-setting-reconnect');
+    if (reconnectBtn) {
+        reconnectBtn.addEventListener('click', () => Manager.reconnectNow());
+    }
+    const homeStatusBtn = document.getElementById('dp-home-status');
+    if (homeStatusBtn) {
+        homeStatusBtn.addEventListener('click', () => Manager.reconnectNow());
+    }
 
     const themeButtons = document.querySelectorAll('.dp-theme-option');
     const validThemes = new Set(Array.from(themeButtons, btn => btn.dataset.theme || 'default'));
@@ -1076,6 +1106,7 @@ window.addEventListener('load', () => {
     const showSecondsToggle = document.getElementById('dp-setting-show-seconds');
     const clock24hToggle = document.getElementById('dp-setting-clock-24h');
     const showDateToggle = document.getElementById('dp-setting-show-date');
+    const showWeekdayToggle = document.getElementById('dp-setting-show-weekday');
     const clockOffsetDown = document.getElementById('dp-clock-offset-down');
     const clockOffsetUp = document.getElementById('dp-clock-offset-up');
     const clockOffsetValue = document.getElementById('dp-clock-offset-value');
@@ -1149,6 +1180,9 @@ window.addEventListener('load', () => {
     bindToggleCard(showDateToggle, () => {
         localStorage.setItem('dp-clock-date', showDateToggle.checked ? '1' : '0');
     });
+    bindToggleCard(showWeekdayToggle, () => {
+        localStorage.setItem('dp-clock-weekday', showWeekdayToggle.checked ? '1' : '0');
+    });
     bindToggleCard(autoHomeToggle, () => {
         localStorage.setItem('dp-auto-home', autoHomeToggle.checked ? '1' : '0');
         resetAutoHomeTimer();
@@ -1182,16 +1216,11 @@ window.addEventListener('load', () => {
     const clockEl = document.getElementById('dp-home-clock');
     const dateEl = document.getElementById('dp-home-date');
     if (clockEl && dateEl) {
-        const chicagoDateFormatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: 'America/Chicago',
-            weekday: 'short',
-            month: 'short',
-            day: '2-digit'
-        });
         const getClockPreferences = () => ({
             showSeconds: localStorage.getItem('dp-clock-seconds') === '1',
             use24Hour: localStorage.getItem('dp-clock-24h') === '1',
             showDate: localStorage.getItem('dp-clock-date') !== '0',
+            showWeekday: localStorage.getItem('dp-clock-weekday') !== '0',
             hourOffset: Math.max(-12, Math.min(12, parseInt(localStorage.getItem('dp-clock-hour-offset') || '0', 10) || 0))
         });
         const syncClockToggles = () => {
@@ -1199,6 +1228,7 @@ window.addEventListener('load', () => {
             if (showSecondsToggle) showSecondsToggle.checked = prefs.showSeconds;
             if (clock24hToggle) clock24hToggle.checked = prefs.use24Hour;
             if (showDateToggle) showDateToggle.checked = prefs.showDate;
+            if (showWeekdayToggle) showWeekdayToggle.checked = prefs.showWeekday;
             if (clockOffsetValue) {
                 clockOffsetValue.textContent = prefs.hourOffset === 0
                     ? '0h'
@@ -1209,6 +1239,12 @@ window.addEventListener('load', () => {
         const updateClock = () => {
             const prefs = getClockPreferences();
             const now = new Date(Date.now() + (prefs.hourOffset * 60 * 60 * 1000));
+            const chicagoDateFormatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Chicago',
+                weekday: prefs.showWeekday ? 'short' : undefined,
+                month: 'short',
+                day: '2-digit'
+            });
             const chicagoTimeFormatter = new Intl.DateTimeFormat('en-US', {
                 timeZone: 'America/Chicago',
                 hour: 'numeric',
@@ -1225,9 +1261,11 @@ window.addEventListener('load', () => {
                 ? `${hours}:${minutes}${seconds ? `:${seconds}` : ''}`
                 : `${hours}:${minutes}${seconds ? `:${seconds}` : ''} <span class="dp-home-ampm">${ampm}</span>`;
             const date = chicagoDateFormatter.format(now);
+            const hasWideHour = String(hours).length > 1;
             clockEl.classList.toggle('dp-home-clock-compact', !!seconds);
             clockEl.classList.toggle('dp-home-clock-expanded', !seconds);
             clockEl.classList.toggle('dp-home-clock-12h', !prefs.use24Hour);
+            clockEl.classList.toggle('dp-home-clock-wide-hour', hasWideHour);
             dateEl.classList.toggle('dp-hidden', !prefs.showDate);
             clockEl.innerHTML = time;
             dateEl.textContent = date;
@@ -1240,6 +1278,9 @@ window.addEventListener('load', () => {
         }
         if (showDateToggle) {
             showDateToggle.addEventListener('change', updateClock);
+        }
+        if (showWeekdayToggle) {
+            showWeekdayToggle.addEventListener('change', updateClock);
         }
         const adjustClockOffset = (delta) => {
             const prefs = getClockPreferences();

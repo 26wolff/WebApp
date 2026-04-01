@@ -522,7 +522,7 @@ body[data-theme="forest"] {
     letter-spacing: clamp(1px, .28vw, 4px);
     font-family: var(--home-font);
     white-space: nowrap;
-    line-height: 1;
+    line-height: .9;
     max-width: calc(100% - 48px);
     text-align: center;
     text-shadow: 0 0 calc(var(--home-shadow) * .45px) color-mix(in srgb, var(--home-glow) calc(55% * var(--home-glow-enabled)), transparent), 0 0 calc(var(--home-shadow) * .85px) color-mix(in srgb, var(--home-glow-strong) calc(35% * var(--home-glow-enabled)), transparent);
@@ -539,9 +539,18 @@ body[data-theme="forest"] {
     letter-spacing: clamp(1.1px, .34vw, 4.6px)
 }
 
+.dp-home-clock.dp-home-clock-wide-hour {
+    transform: scale(.94);
+    transform-origin: center center
+}
+
 .dp-home-clock.dp-home-clock-12h {
     transform: scale(.88);
     transform-origin: center center
+}
+
+.dp-home-clock.dp-home-clock-12h.dp-home-clock-wide-hour {
+    transform: scale(.72)
 }
 
 .dp-home-ampm {
@@ -550,6 +559,12 @@ body[data-theme="forest"] {
     margin-left: -.32em;
     opacity: .8;
     vertical-align: super
+}
+
+.dp-home-clock.dp-home-clock-12h.dp-home-clock-wide-hour .dp-home-ampm {
+    font-size: .21em;
+    letter-spacing: .2em;
+    margin-left: -.74em
 }
 
 .dp-home-date {
@@ -1015,6 +1030,11 @@ body[data-theme="forest"] {
     cursor: none
 }
 
+.dp-theme-section-compact {
+    gap: 10px;
+    padding: 14px
+}
+
 .dp-command-log {
     display: flex;
     flex-direction: column;
@@ -1231,9 +1251,78 @@ body[data-theme="forest"] {
     gap: 12px
 }
 
+.dp-settings-stack-compact {
+    gap: 8px
+}
+
+.dp-clock-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px
+}
+
 .dp-settings-stack .dp-setting-card {
     width: 100%;
     box-sizing: border-box
+}
+
+.dp-settings-stack-compact .dp-setting-card {
+    min-height: 0;
+    padding: 12px 14px;
+    border-radius: 14px
+}
+
+.dp-clock-setting-card {
+    align-items: center
+}
+
+.dp-clock-offset-card {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px
+}
+
+.dp-settings-stack-compact .dp-setting-text {
+    gap: 3px
+}
+
+.dp-settings-stack-compact .dp-setting-title {
+    font-size: 15px
+}
+
+.dp-settings-stack-compact .dp-setting-subtitle {
+    font-size: 11px
+}
+
+.dp-settings-stack-compact .dp-switch {
+    width: 58px;
+    height: 32px
+}
+
+.dp-settings-stack-compact .dp-switch-slider::before {
+    width: 24px;
+    height: 24px
+}
+
+.dp-settings-stack-compact .dp-switch input:checked + .dp-switch-slider::before {
+    transform: translateX(24px)
+}
+
+.dp-settings-stack-compact .dp-clock-offset {
+    gap: 10px
+}
+
+.dp-settings-stack-compact .dp-clock-offset-btn {
+    min-width: 66px;
+    padding: 8px 12px;
+    font-size: 13px
+}
+
+.dp-settings-stack-compact .dp-clock-offset-value {
+    min-width: 48px;
+    font-size: 14px
 }
 
 .dp-clock-offset {

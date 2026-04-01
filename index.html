@@ -79,10 +79,10 @@
     <div id="dp-content">
       <div id="dp-Home" class="dp-section">
         <div class="dp-home-panel">
-          <div class="dp-home-status" id="dp-home-status" data-status="disconnected">
+          <button class="dp-home-status" id="dp-home-status" data-status="disconnected" type="button">
             <span class="dp-home-status-dot" aria-hidden="true"></span>
             <span class="dp-home-status-text" id="dp-home-status-text">Disconnected</span>
-          </div>
+          </button>
           <div class="dp-home-clock" id="dp-home-clock">--:--</div>
           <div class="dp-home-date" id="dp-home-date">---</div>
         </div>
@@ -190,6 +190,15 @@
                 <span class="dp-setting-subtitle">Reload apps and games from the PC</span>
               </div>
             </button>
+            <button class="dp-setting-card" id="dp-setting-reconnect" type="button">
+              <div class="dp-setting-icon">
+                <img src="Content/ReloadIcon.png" alt="Reconnect" />
+              </div>
+              <div class="dp-setting-text">
+                <span class="dp-setting-title">Reconnect</span>
+                <span class="dp-setting-subtitle">Reconnect to the PC right now</span>
+              </div>
+            </button>
             <div class="dp-setting-card dp-setting-toggle">
               <div class="dp-setting-icon">
                 <img src="Content/MusicRunIcon.png" alt="Remove Video Information" />
@@ -291,46 +300,56 @@
               </div>
             </div>
 
-            <div class="dp-theme-section">
+            <div class="dp-theme-section dp-theme-section-compact">
               <div class="dp-setting-text">
                 <span class="dp-setting-title">Clock</span>
                 <span class="dp-setting-subtitle">Adjust how the home clock is shown</span>
               </div>
-              <div class="dp-settings-stack">
-                <div class="dp-setting-card dp-setting-toggle">
+              <div class="dp-settings-stack dp-settings-stack-compact dp-clock-settings-grid">
+                <div class="dp-setting-card dp-setting-toggle dp-clock-setting-card">
                   <div class="dp-setting-text">
                     <span class="dp-setting-title">Show Seconds</span>
-                    <span class="dp-setting-subtitle">Include seconds on the home screen clock</span>
+                    <span class="dp-setting-subtitle">Include seconds</span>
                   </div>
                   <label class="dp-switch">
                     <input type="checkbox" id="dp-setting-show-seconds" />
                     <span class="dp-switch-slider"></span>
                   </label>
                 </div>
-                <div class="dp-setting-card dp-setting-toggle">
+                <div class="dp-setting-card dp-setting-toggle dp-clock-setting-card">
                   <div class="dp-setting-text">
                     <span class="dp-setting-title">24-Hour Time</span>
-                    <span class="dp-setting-subtitle">Use 24-hour format instead of AM/PM</span>
+                    <span class="dp-setting-subtitle">Use 24-hour time</span>
                   </div>
                   <label class="dp-switch">
                     <input type="checkbox" id="dp-setting-clock-24h" />
                     <span class="dp-switch-slider"></span>
                   </label>
                 </div>
-                <div class="dp-setting-card dp-setting-toggle">
+                <div class="dp-setting-card dp-setting-toggle dp-clock-setting-card">
                   <div class="dp-setting-text">
                     <span class="dp-setting-title">Show Date</span>
-                    <span class="dp-setting-subtitle">Show or hide the date under the home clock</span>
+                    <span class="dp-setting-subtitle">Show date line</span>
                   </div>
                   <label class="dp-switch">
                     <input type="checkbox" id="dp-setting-show-date" />
                     <span class="dp-switch-slider"></span>
                   </label>
                 </div>
-                <div class="dp-setting-card">
+                <div class="dp-setting-card dp-setting-toggle dp-clock-setting-card">
+                  <div class="dp-setting-text">
+                    <span class="dp-setting-title">Show Weekday</span>
+                    <span class="dp-setting-subtitle">Include weekday</span>
+                  </div>
+                  <label class="dp-switch">
+                    <input type="checkbox" id="dp-setting-show-weekday" />
+                    <span class="dp-switch-slider"></span>
+                  </label>
+                </div>
+                <div class="dp-setting-card dp-clock-setting-card dp-clock-offset-card">
                   <div class="dp-setting-text">
                     <span class="dp-setting-title">Hour Offset</span>
-                    <span class="dp-setting-subtitle">Manually shift the clock by plus or minus 1 hour steps</span>
+                    <span class="dp-setting-subtitle">Shift by plus or minus 1 hour</span>
                   </div>
                   <div class="dp-clock-offset" id="dp-clock-offset">
                     <button class="dp-clock-offset-btn" id="dp-clock-offset-down" type="button">-1h</button>
@@ -402,7 +421,7 @@
         showAppsSection("games");
       };
     </script>
-    <link rel="stylesheet" href="style.css?v=20260331f" />
-    <script src="main.js?v=20260331f" type="module"></script>
+    <link rel="stylesheet" href="style.css?v=20260331i" />
+    <script src="main.js?v=20260331i" type="module"></script>
   </body>
 </html>
