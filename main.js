@@ -104,9 +104,20 @@ export const Manager = new class {
         };
 
         this.ws.onmessage = (event) => {
+            // Reset idle timeout on every message
+            clearTimeout(this.messageTimeout);
+            
+            // Handle raw heartbeat string first
+            if (event.data === "PING") {
+                console.log("[WS] Heartbeat received");
+                this.setupIdleTimeout();
+                return;
+            }
+            
             try {
                 const msg = JSON.parse(event.data);
                 console.log("[WS MSG]", msg);
+                
                 for (const key in msg) {
                     if (!msg.hasOwnProperty(key)) continue;
                     const value = msg[key];
@@ -123,6 +134,9 @@ export const Manager = new class {
             } catch (err) {
                 console.warn("[WS] Failed to parse message:", err);
             }
+            
+            // Setup timeout for next expected message
+            this.setupIdleTimeout();
         };
 
         this.ws.onclose = () => {
@@ -138,6 +152,20 @@ export const Manager = new class {
                 this.setConnectionState('disconnected');
             }
         };
+        
+        // Setup initial idle timeout
+        this.setupIdleTimeout();
+    }
+
+    setupIdleTimeout() {
+        clearTimeout(this.messageTimeout);
+        // If no message received for 40s (heartbeat every 20s + buffer), reconnect
+        this.messageTimeout = setTimeout(() => {
+            console.warn("[WS] No message received for 40s (idle timeout), reconnecting...");
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.reconnectNow();
+            }
+        }, 40000);
     }
 
     requestInitialData() {
