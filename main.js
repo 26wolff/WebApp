@@ -10,6 +10,7 @@ export const Manager = new class {
         this.micMuted = false;
         this.ws = null;
         this.connected = false;
+        this.connectionState = 'disconnected';
         this.reconnectTimer = null;
 
         this.sliderData = [];
@@ -19,6 +20,7 @@ export const Manager = new class {
         this.gameData = {};
         this.musicPrivacyEnabled = false;
         this.lastMusicInfo = null;
+        this.commandHistory = [];
         this.domReady = false;
         this.DEFAULT_SLIDERS = [
             { id: "a1", name: "Main Volume", icon: "SoundIcon", muteIcon: "SoundOffIcon", code: "0=main", volume: 80, is_muted: false },
@@ -88,6 +90,7 @@ export const Manager = new class {
     connectWebSocket() {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
 
+        this.setConnectionState('reconnecting');
         const url = `ws://${this.SERVER_IP}:${this.SERVER_PORT}/ws`;
         this.ws = new WebSocket(url);
 
@@ -95,7 +98,8 @@ export const Manager = new class {
             console.log("[WS] Connected to server");
             clearTimeout(this.reconnectTimer);
             this.connected = true;
-            this.updateTrayIconsConnection();
+            this.reconnectTimer = null;
+            this.setConnectionState('connected');
             this.requestInitialData();
         };
 
@@ -125,10 +129,15 @@ export const Manager = new class {
             console.log("[WS] Disconnected, reconnecting in 2s...");
             this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
             this.connected = false;
-            this.updateTrayIconsConnection();
+            this.setConnectionState('reconnecting');
         };
 
-        this.ws.onerror = (err) => console.error("[WS ERROR]", err);
+        this.ws.onerror = (err) => {
+            console.error("[WS ERROR]", err);
+            if (!this.connected) {
+                this.setConnectionState('disconnected');
+            }
+        };
     }
 
     requestInitialData() {
@@ -143,7 +152,66 @@ export const Manager = new class {
     sendPacket(value) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(value);
+            this.recordCommand(value);
         }
+    }
+
+    recordCommand(command) {
+        if (typeof command !== 'string' || !command.trim()) return;
+        if (!this.isTrackedCommand(command)) return;
+
+        this.commandHistory.unshift({
+            command,
+            timestamp: new Date()
+        });
+        this.commandHistory = this.commandHistory.slice(0, 3);
+        this.renderCommandHistory();
+    }
+
+    isTrackedCommand(command) {
+        const parts = command.split('=');
+        if (parts.length !== 3) return false;
+        if (!/^\d+$/.test(parts[0])) return false;
+        if (!parts[1] || !parts[2]) return false;
+        if (parts[0] === '0' || parts[0] === '1') return false;
+        return true;
+    }
+
+    renderCommandHistory() {
+        if (!this.domReady) return;
+
+        const host = document.getElementById('dp-command-log');
+        if (!host) return;
+
+        host.innerHTML = '';
+
+        if (!this.commandHistory.length) {
+            host.innerHTML = '<div class="dp-command-log-empty">No commands sent yet</div>';
+            return;
+        }
+
+        this.commandHistory.forEach((entry) => {
+            const row = document.createElement('div');
+            row.className = 'dp-command-row';
+
+            const time = document.createElement('span');
+            time.className = 'dp-command-time';
+            time.textContent = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Chicago',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            }).format(entry.timestamp);
+
+            const text = document.createElement('code');
+            text.className = 'dp-command-text';
+            text.textContent = entry.command;
+
+            row.appendChild(time);
+            row.appendChild(text);
+            host.appendChild(row);
+        });
     }
 
     normalizeAppItem(item) {
@@ -230,6 +298,7 @@ export const Manager = new class {
             container.className = 'dp-apps-list';
             panel.appendChild(container);
         }
+        installSwipeScroll(container);
         container.innerHTML = '';
 
         const appList = Array.isArray(this.appData) ? this.appData : [];
@@ -251,6 +320,7 @@ export const Manager = new class {
             container.className = 'dp-apps-list';
             panel.appendChild(container);
         }
+        installSwipeScroll(container);
         container.innerHTML = '';
 
         const gameList = Array.isArray(this.gameData) ? this.gameData : [];
@@ -261,15 +331,30 @@ export const Manager = new class {
         });
     }
 
+    setConnectionState(state) {
+        this.connectionState = state;
+        this.updateTrayIconsConnection();
+    }
+
     updateTrayIconsConnection() {
         const iconContainers = document.querySelectorAll('.dp-nav-item');
         iconContainers.forEach(container => {
-            if (!this.connected) {
-                container.classList.add('dp-disconnected');
-            } else {
-                container.classList.remove('dp-disconnected');
-            }
+            container.classList.toggle('dp-disconnected', this.connectionState === 'disconnected');
+            container.classList.toggle('dp-connection-reconnecting', this.connectionState === 'reconnecting');
         });
+
+        const badge = document.getElementById('dp-home-status');
+        const badgeText = document.getElementById('dp-home-status-text');
+        if (badge) {
+            badge.dataset.status = this.connectionState;
+        }
+        if (badgeText) {
+            badgeText.textContent = this.connectionState === 'connected'
+                ? 'Connected'
+                : this.connectionState === 'reconnecting'
+                    ? 'Reconnecting'
+                    : 'Disconnected';
+        }
     }
 
     reloadLocalData() {
@@ -346,7 +431,6 @@ export const Manager = new class {
 
         const titleEl = document.getElementById('dp-music-title');
         const artistEl = document.getElementById('dp-music-artist');
-        const subEl = document.getElementById('dp-music-sub');
         const thumbEl = document.getElementById('dp-music-thumb');
 
         const status = String(info && info.status || '').toLowerCase();
@@ -360,7 +444,6 @@ export const Manager = new class {
             if (!info || !hasMedia){
                 if (titleEl) titleEl.textContent = 'Nothing playing';
                 if (artistEl) artistEl.textContent = '—';
-                if (subEl) subEl.textContent = '';
                 if (thumbEl) thumbEl.src = 'Content/NoSongIcon.png';
                 if (this.musicControls) this.musicControls.setPlayingState(false);
                 return;
@@ -369,7 +452,6 @@ export const Manager = new class {
             // something playing but hidden
             if (titleEl) titleEl.textContent = 'Now playing';
             if (artistEl) artistEl.textContent = 'Audio';
-            if (subEl) subEl.textContent = '';
             if (thumbEl) thumbEl.src = 'Content/MusicRunIcon.png';
             if (this.musicControls) this.musicControls.setPlayingState(true);
             return;
@@ -379,7 +461,6 @@ export const Manager = new class {
         if (!info) {
             if (titleEl) titleEl.textContent = 'Nothing playing';
             if (artistEl) artistEl.textContent = '—';
-            if (subEl) subEl.textContent = '';
             if (thumbEl) thumbEl.src = 'Content/NoSongIcon.png';
             if (this.musicControls) this.musicControls.setPlayingState(false);
             return;
@@ -809,6 +890,84 @@ function installBrightnessSafety(applyBrightness) {
     document.addEventListener('mouseleave', clearHold, true);
 }
 
+function installSwipeScroll(container) {
+    if (!container || container.__dpSwipeScrollInstalled) return;
+    container.__dpSwipeScrollInstalled = true;
+
+    let activePointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let startScrollTop = 0;
+    let dragging = false;
+    let suppressClickUntil = 0;
+
+    const finishDrag = () => {
+        activePointerId = null;
+        if (dragging) {
+            suppressClickUntil = Date.now() + 250;
+        }
+        dragging = false;
+        container.classList.remove('dp-drag-scrolling');
+    };
+
+    container.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        if (event.target instanceof Element) {
+            if (container.classList.contains('dp-settings-panel') &&
+                event.target.closest('button, input, label, .dp-setting-card, .dp-theme-option')) {
+                return;
+            }
+            if (container.classList.contains('dp-apps-list') &&
+                event.target.closest('button, .dp-app-item, .dp-game-item')) {
+                return;
+            }
+        }
+
+        activePointerId = event.pointerId;
+        startX = event.clientX;
+        startY = event.clientY;
+        startScrollTop = container.scrollTop;
+        dragging = false;
+
+        if (typeof container.setPointerCapture === 'function') {
+            try {
+                container.setPointerCapture(event.pointerId);
+            } catch { }
+        }
+    });
+
+    container.addEventListener('pointermove', (event) => {
+        if (event.pointerId !== activePointerId) return;
+
+        const deltaX = event.clientX - startX;
+        const deltaY = event.clientY - startY;
+
+        if (!dragging) {
+            if (Math.abs(deltaY) < 8) return;
+            if (Math.abs(deltaX) > Math.abs(deltaY)) return;
+            dragging = true;
+            container.classList.add('dp-drag-scrolling');
+        }
+
+        container.scrollTop = startScrollTop - deltaY;
+        event.preventDefault();
+    }, { passive: false });
+
+    container.addEventListener('pointerup', finishDrag);
+    container.addEventListener('pointercancel', finishDrag);
+    container.addEventListener('lostpointercapture', finishDrag);
+
+    container.addEventListener('click', (event) => {
+        if (Date.now() >= suppressClickUntil) return;
+        event.preventDefault();
+        event.stopPropagation();
+    }, true);
+}
+
+function installSwipeScrollRegions() {
+    document.querySelectorAll('.dp-apps-list, .dp-settings-panel').forEach(installSwipeScroll);
+}
+
 function setIconImage(imgEl, icon, fallbackIcon) {
     const sources = buildIconSources(icon, fallbackIcon);
     let index = 0;
@@ -876,26 +1035,34 @@ class MusicControls {
 
 window.addEventListener('load', () => {
     installHiddenCursorGuards();
+    installSwipeScrollRegions();
+    Manager.renderCommandHistory();
 
     const reloadPageBtn = document.getElementById('dp-setting-reload-page');
     if (reloadPageBtn) {
         reloadPageBtn.addEventListener('click', () => window.location.reload());
     }
+    const refreshAppsBtn = document.getElementById('dp-setting-refresh-apps');
+    if (refreshAppsBtn) {
+        refreshAppsBtn.addEventListener('click', () => Manager.sendPacket('10=applications=get'));
+    }
 
     const themeButtons = document.querySelectorAll('.dp-theme-option');
+    const validThemes = new Set(Array.from(themeButtons, btn => btn.dataset.theme || 'default'));
     const applyTheme = (theme) => {
-        const normalized = theme && theme !== 'default' ? theme : '';
+        const safeTheme = validThemes.has(theme || 'default') ? (theme || 'default') : 'default';
+        const normalized = safeTheme !== 'default' ? safeTheme : '';
         if (normalized) {
             document.body.setAttribute('data-theme', normalized);
         } else {
             document.body.removeAttribute('data-theme');
         }
-        localStorage.setItem('dp-theme', theme || 'default');
+        localStorage.setItem('dp-theme', safeTheme);
         themeButtons.forEach(btn => btn.classList.remove('dp-selected'));
         let active = null;
         for (let i = 0; i < themeButtons.length; i++) {
             const btn = themeButtons[i];
-            if (btn.dataset.theme === (theme || 'default')) {
+            if (btn.dataset.theme === safeTheme) {
                 active = btn;
                 break;
             }
@@ -905,6 +1072,13 @@ window.addEventListener('load', () => {
 
     const brightnessInput = document.getElementById('dp-setting-brightness');
     const brightnessValue = document.getElementById('dp-setting-brightness-value');
+    const autoHomeToggle = document.getElementById('dp-setting-auto-home');
+    const showSecondsToggle = document.getElementById('dp-setting-show-seconds');
+    const clock24hToggle = document.getElementById('dp-setting-clock-24h');
+    const showDateToggle = document.getElementById('dp-setting-show-date');
+    const clockOffsetDown = document.getElementById('dp-clock-offset-down');
+    const clockOffsetUp = document.getElementById('dp-clock-offset-up');
+    const clockOffsetValue = document.getElementById('dp-clock-offset-value');
     const applyBrightness = (value) => {
         const numeric = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
         document.documentElement.style.setProperty('--dp-brightness', `${numeric}%`);
@@ -952,33 +1126,135 @@ window.addEventListener('load', () => {
         }
     }
 
+    const bindToggleCard = (input, onChange) => {
+        if (!input) return;
+        const card = findClosestByClass(input, 'dp-setting-toggle');
+        input.addEventListener('change', onChange);
+        if (card) {
+            card.addEventListener('click', (event) => {
+                if (event.target instanceof Element && event.target.closest('.dp-switch')) return;
+                input.checked = !input.checked;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+    };
+
+    bindToggleCard(showSecondsToggle, () => {
+        localStorage.setItem('dp-clock-seconds', showSecondsToggle.checked ? '1' : '0');
+    });
+
+    bindToggleCard(clock24hToggle, () => {
+        localStorage.setItem('dp-clock-24h', clock24hToggle.checked ? '1' : '0');
+    });
+    bindToggleCard(showDateToggle, () => {
+        localStorage.setItem('dp-clock-date', showDateToggle.checked ? '1' : '0');
+    });
+    bindToggleCard(autoHomeToggle, () => {
+        localStorage.setItem('dp-auto-home', autoHomeToggle.checked ? '1' : '0');
+        resetAutoHomeTimer();
+    });
+
+    let autoHomeTimer = null;
+    const autoHomeEvents = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'];
+    const clearAutoHomeTimer = () => {
+        if (autoHomeTimer) {
+            clearTimeout(autoHomeTimer);
+            autoHomeTimer = null;
+        }
+    };
+    const resetAutoHomeTimer = () => {
+        clearAutoHomeTimer();
+        if (!autoHomeToggle || !autoHomeToggle.checked) return;
+        autoHomeTimer = setTimeout(() => {
+            if (typeof showOnlyDiv === 'function') {
+                showOnlyDiv('dp-Home');
+            }
+        }, 60000);
+    };
+    if (autoHomeToggle) {
+        autoHomeToggle.checked = localStorage.getItem('dp-auto-home') === '1';
+        autoHomeEvents.forEach(eventName => {
+            document.addEventListener(eventName, resetAutoHomeTimer, true);
+        });
+        resetAutoHomeTimer();
+    }
+
     const clockEl = document.getElementById('dp-home-clock');
     const dateEl = document.getElementById('dp-home-date');
     if (clockEl && dateEl) {
-        const chicagoTimeFormatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: 'America/Chicago',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
         const chicagoDateFormatter = new Intl.DateTimeFormat('en-US', {
             timeZone: 'America/Chicago',
             weekday: 'short',
             month: 'short',
             day: '2-digit'
         });
+        const getClockPreferences = () => ({
+            showSeconds: localStorage.getItem('dp-clock-seconds') === '1',
+            use24Hour: localStorage.getItem('dp-clock-24h') === '1',
+            showDate: localStorage.getItem('dp-clock-date') !== '0',
+            hourOffset: Math.max(-12, Math.min(12, parseInt(localStorage.getItem('dp-clock-hour-offset') || '0', 10) || 0))
+        });
+        const syncClockToggles = () => {
+            const prefs = getClockPreferences();
+            if (showSecondsToggle) showSecondsToggle.checked = prefs.showSeconds;
+            if (clock24hToggle) clock24hToggle.checked = prefs.use24Hour;
+            if (showDateToggle) showDateToggle.checked = prefs.showDate;
+            if (clockOffsetValue) {
+                clockOffsetValue.textContent = prefs.hourOffset === 0
+                    ? '0h'
+                    : `${prefs.hourOffset > 0 ? '+' : ''}${prefs.hourOffset}h`;
+            }
+        };
 
         const updateClock = () => {
-            const now = new Date();
+            const prefs = getClockPreferences();
+            const now = new Date(Date.now() + (prefs.hourOffset * 60 * 60 * 1000));
+            const chicagoTimeFormatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Chicago',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: prefs.showSeconds ? '2-digit' : undefined,
+                hour12: !prefs.use24Hour
+            });
             const timeParts = chicagoTimeFormatter.formatToParts(now);
             const hours = timeParts.find(part => part.type === 'hour')?.value ?? '--';
             const minutes = timeParts.find(part => part.type === 'minute')?.value ?? '--';
+            const seconds = timeParts.find(part => part.type === 'second')?.value;
             const ampm = timeParts.find(part => part.type === 'dayPeriod')?.value?.toUpperCase() ?? '';
-            const time = `${hours}:${minutes} <span class="dp-home-ampm">${ampm}</span>`;
+            const time = prefs.use24Hour
+                ? `${hours}:${minutes}${seconds ? `:${seconds}` : ''}`
+                : `${hours}:${minutes}${seconds ? `:${seconds}` : ''} <span class="dp-home-ampm">${ampm}</span>`;
             const date = chicagoDateFormatter.format(now);
+            clockEl.classList.toggle('dp-home-clock-compact', !!seconds);
+            clockEl.classList.toggle('dp-home-clock-expanded', !seconds);
+            clockEl.classList.toggle('dp-home-clock-12h', !prefs.use24Hour);
+            dateEl.classList.toggle('dp-hidden', !prefs.showDate);
             clockEl.innerHTML = time;
             dateEl.textContent = date;
         };
+        if (showSecondsToggle) {
+            showSecondsToggle.addEventListener('change', updateClock);
+        }
+        if (clock24hToggle) {
+            clock24hToggle.addEventListener('change', updateClock);
+        }
+        if (showDateToggle) {
+            showDateToggle.addEventListener('change', updateClock);
+        }
+        const adjustClockOffset = (delta) => {
+            const prefs = getClockPreferences();
+            const next = Math.max(-12, Math.min(12, prefs.hourOffset + delta));
+            localStorage.setItem('dp-clock-hour-offset', String(next));
+            syncClockToggles();
+            updateClock();
+        };
+        if (clockOffsetDown) {
+            clockOffsetDown.addEventListener('click', () => adjustClockOffset(-1));
+        }
+        if (clockOffsetUp) {
+            clockOffsetUp.addEventListener('click', () => adjustClockOffset(1));
+        }
+        syncClockToggles();
         updateClock();
         setInterval(updateClock, 1000);
     }
@@ -991,7 +1267,6 @@ Manager.renderAll = function() {
     this.renderMusicSlider();
     this.renderApps();
     this.renderGames();
+    this.renderCommandHistory();
     if (this.lastMusicInfo) this.updateMusicNowPlaying(this.lastMusicInfo);
 };
-
-

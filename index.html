@@ -28,7 +28,7 @@
         "
         class="dp-nav-item"
       >
-        <img src="Content/HomeIcon.png" id="dp-HomeIcon" class="dp-icon" />
+        <span id="dp-HomeIcon" class="dp-icon dp-icon-mask dp-icon-home"></span>
         <span id="dp-HomeText" class="dp-icon-text">HOME</span>
       </a>
       <a
@@ -38,7 +38,7 @@
         "
         class="dp-nav-item"
       >
-        <img src="Content/SoundIcon.png" id="dp-AudioIcon" class="dp-icon" />
+        <span id="dp-AudioIcon" class="dp-icon dp-icon-mask dp-icon-audio"></span>
         <span id="dp-AudioText" class="dp-icon-text">AUDIO</span>
       </a>
       <a
@@ -48,7 +48,7 @@
         "
         class="dp-nav-item"
       >
-        <img src="Content/MusicIcon.png" id="dp-MusicIcon" class="dp-icon" />
+        <span id="dp-MusicIcon" class="dp-icon dp-icon-mask dp-icon-music"></span>
         <span id="dp-MusicText" class="dp-icon-text">MUSIC</span>
       </a>
       <a
@@ -58,7 +58,7 @@
         "
         class="dp-nav-item"
       >
-        <img src="Content/AppsIcon.png" id="dp-AppsIcon" class="dp-icon" />
+        <span id="dp-AppsIcon" class="dp-icon dp-icon-mask dp-icon-apps"></span>
         <span id="dp-AppsText" class="dp-icon-text">APPS</span>
       </a>
       <a
@@ -68,11 +68,10 @@
         "
         class="dp-nav-item"
       >
-        <img
-          src="Content/SettingsIcon.png"
+        <span
           id="dp-SettingsIcon"
-          class="dp-icon"
-        />
+          class="dp-icon dp-icon-mask dp-icon-settings"
+        ></span>
         <span id="dp-SettingsText" class="dp-icon-text">SETTINGS</span>
       </a>
     </div>
@@ -80,6 +79,10 @@
     <div id="dp-content">
       <div id="dp-Home" class="dp-section">
         <div class="dp-home-panel">
+          <div class="dp-home-status" id="dp-home-status" data-status="disconnected">
+            <span class="dp-home-status-dot" aria-hidden="true"></span>
+            <span class="dp-home-status-text" id="dp-home-status-text">Disconnected</span>
+          </div>
           <div class="dp-home-clock" id="dp-home-clock">--:--</div>
           <div class="dp-home-date" id="dp-home-date">---</div>
         </div>
@@ -125,7 +128,7 @@
             onclick="showAppsSection('games')"
           >
             <span class="dp-apps-tab-icon">
-              <img src="Content/GamesIcon.png" alt="Games" />
+              <span class="dp-apps-tab-icon-mask dp-apps-tab-icon-games" aria-hidden="true"></span>
             </span>
             <span class="dp-apps-tab-title">Games</span>
           </button>
@@ -135,7 +138,7 @@
             onclick="showAppsSection('apps')"
           >
             <span class="dp-apps-tab-icon">
-              <img src="Content/AppsIcon.png" alt="Apps" />
+              <span class="dp-apps-tab-icon-mask dp-apps-tab-icon-apps" aria-hidden="true"></span>
             </span>
             <span class="dp-apps-tab-title">Apps</span>
           </button>
@@ -178,6 +181,15 @@
                 <span class="dp-setting-subtitle">Refresh the display</span>
               </div>
             </button>
+            <button class="dp-setting-card" id="dp-setting-refresh-apps" type="button">
+              <div class="dp-setting-icon">
+                <img src="Content/AppsIcon.png" alt="Refresh Apps" />
+              </div>
+              <div class="dp-setting-text">
+                <span class="dp-setting-title">Refresh Apps</span>
+                <span class="dp-setting-subtitle">Reload apps and games from the PC</span>
+              </div>
+            </button>
             <div class="dp-setting-card dp-setting-toggle">
               <div class="dp-setting-icon">
                 <img src="Content/MusicRunIcon.png" alt="Remove Video Information" />
@@ -188,6 +200,19 @@
               </div>
               <label class="dp-switch">
                 <input type="checkbox" id="dp-setting-remove-video-info" />
+                <span class="dp-switch-slider"></span>
+              </label>
+            </div>
+            <div class="dp-setting-card dp-setting-toggle">
+              <div class="dp-setting-icon">
+                <img src="Content/HomeIcon.png" alt="Auto Return Home" />
+              </div>
+              <div class="dp-setting-text">
+                <span class="dp-setting-title">Auto-Return Home</span>
+                <span class="dp-setting-subtitle">Go back to Home after 60 seconds of inactivity</span>
+              </div>
+              <label class="dp-switch">
+                <input type="checkbox" id="dp-setting-auto-home" />
                 <span class="dp-switch-slider"></span>
               </label>
             </div>
@@ -210,9 +235,41 @@
                   <span class="dp-theme-swatch dp-theme-ocean"></span>
                   <span class="dp-theme-label">Ocean</span>
                 </button>
-                <button class="dp-theme-option" data-theme="tech" type="button">
-                  <span class="dp-theme-swatch dp-theme-tech"></span>
-                  <span class="dp-theme-label">Tech</span>
+                <button class="dp-theme-option" data-theme="glacier" type="button">
+                  <span class="dp-theme-swatch dp-theme-glacier"></span>
+                  <span class="dp-theme-label">Glacier</span>
+                </button>
+                <button class="dp-theme-option" data-theme="lagoon" type="button">
+                  <span class="dp-theme-swatch dp-theme-lagoon"></span>
+                  <span class="dp-theme-label">Lagoon</span>
+                </button>
+                <button class="dp-theme-option" data-theme="evergreen" type="button">
+                  <span class="dp-theme-swatch dp-theme-evergreen"></span>
+                  <span class="dp-theme-label">Evergreen</span>
+                </button>
+                <button class="dp-theme-option" data-theme="forest" type="button">
+                  <span class="dp-theme-swatch dp-theme-forest"></span>
+                  <span class="dp-theme-label">Forest</span>
+                </button>
+                <button class="dp-theme-option" data-theme="mlm" type="button">
+                  <span class="dp-theme-swatch dp-theme-mlm"></span>
+                  <span class="dp-theme-label">Harbor</span>
+                </button>
+                <button class="dp-theme-option" data-theme="citrus" type="button">
+                  <span class="dp-theme-swatch dp-theme-citrus"></span>
+                  <span class="dp-theme-label">Citrus</span>
+                </button>
+                <button class="dp-theme-option" data-theme="sunset" type="button">
+                  <span class="dp-theme-swatch dp-theme-sunset"></span>
+                  <span class="dp-theme-label">Sunset</span>
+                </button>
+                <button class="dp-theme-option" data-theme="arcade" type="button">
+                  <span class="dp-theme-swatch dp-theme-arcade"></span>
+                  <span class="dp-theme-label">Arcade</span>
+                </button>
+                <button class="dp-theme-option" data-theme="rainbow" type="button">
+                  <span class="dp-theme-swatch dp-theme-rainbow"></span>
+                  <span class="dp-theme-label">Rainbow</span>
                 </button>
               </div>
             </div>
@@ -231,6 +288,66 @@
                   value="100"
                 />
                 <span id="dp-setting-brightness-value" class="dp-setting-brightness-value">100%</span>
+              </div>
+            </div>
+
+            <div class="dp-theme-section">
+              <div class="dp-setting-text">
+                <span class="dp-setting-title">Clock</span>
+                <span class="dp-setting-subtitle">Adjust how the home clock is shown</span>
+              </div>
+              <div class="dp-settings-stack">
+                <div class="dp-setting-card dp-setting-toggle">
+                  <div class="dp-setting-text">
+                    <span class="dp-setting-title">Show Seconds</span>
+                    <span class="dp-setting-subtitle">Include seconds on the home screen clock</span>
+                  </div>
+                  <label class="dp-switch">
+                    <input type="checkbox" id="dp-setting-show-seconds" />
+                    <span class="dp-switch-slider"></span>
+                  </label>
+                </div>
+                <div class="dp-setting-card dp-setting-toggle">
+                  <div class="dp-setting-text">
+                    <span class="dp-setting-title">24-Hour Time</span>
+                    <span class="dp-setting-subtitle">Use 24-hour format instead of AM/PM</span>
+                  </div>
+                  <label class="dp-switch">
+                    <input type="checkbox" id="dp-setting-clock-24h" />
+                    <span class="dp-switch-slider"></span>
+                  </label>
+                </div>
+                <div class="dp-setting-card dp-setting-toggle">
+                  <div class="dp-setting-text">
+                    <span class="dp-setting-title">Show Date</span>
+                    <span class="dp-setting-subtitle">Show or hide the date under the home clock</span>
+                  </div>
+                  <label class="dp-switch">
+                    <input type="checkbox" id="dp-setting-show-date" />
+                    <span class="dp-switch-slider"></span>
+                  </label>
+                </div>
+                <div class="dp-setting-card">
+                  <div class="dp-setting-text">
+                    <span class="dp-setting-title">Hour Offset</span>
+                    <span class="dp-setting-subtitle">Manually shift the clock by plus or minus 1 hour steps</span>
+                  </div>
+                  <div class="dp-clock-offset" id="dp-clock-offset">
+                    <button class="dp-clock-offset-btn" id="dp-clock-offset-down" type="button">-1h</button>
+                    <span class="dp-clock-offset-value" id="dp-clock-offset-value">0h</span>
+                    <button class="dp-clock-offset-btn" id="dp-clock-offset-up" type="button">+1h</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dp-theme-section">
+              <div class="dp-setting-text">
+                <span class="dp-setting-title">Recent Commands</span>
+                <span class="dp-setting-subtitle">Last 3 sent commands in n=name=value format</span>
+              </div>
+              <div class="dp-command-log" id="dp-command-log">
+                <div class="dp-command-log-empty">No commands sent yet</div>
               </div>
             </div>
           </div>
@@ -285,7 +402,7 @@
         showAppsSection("games");
       };
     </script>
-    <link rel="stylesheet" href="style.css?v=20260325f" />
-    <script src="main.js?v=20260325f" type="module"></script>
+    <link rel="stylesheet" href="style.css?v=20260331f" />
+    <script src="main.js?v=20260331f" type="module"></script>
   </body>
 </html>
