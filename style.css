@@ -678,7 +678,7 @@ body[data-theme="forest"] {
     transition: transform 0.2s, opacity 0.2s, background 0.2s, box-shadow .2s
 }
 
-.dp-nav-item:hover,
+
 .dp-nav-item.dp-selected {
     opacity: 1;
     transform: scale(1.1);
@@ -751,7 +751,7 @@ body[data-theme="forest"] {
     transition: opacity .2s ease
 }
 
-.dp-nav-item:hover .dp-icon-text,
+
 .dp-nav-item.dp-selected .dp-icon-text {
     opacity: 1;
     color: inherit
@@ -798,7 +798,6 @@ body[data-theme="forest"] {
     transition: transform 0.2s, opacity 0.2s, background 0.2s, border-color 0.2s, box-shadow .2s
 }
 
-.dp-apps-tab:hover,
 .dp-apps-tab.dp-selected {
     opacity: 1;
     transform: translateY(-1px)
@@ -920,12 +919,6 @@ body[data-theme="forest"] {
     transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow .2s
 }
 
-.dp-setting-card:hover {
-    background: var(--card-hover);
-    border-color: var(--card-border-hover);
-    box-shadow: inset 0 0 0 1px #ffffff0a;
-    transform: translateY(-1px)
-}
 
 .dp-setting-icon {
     width: 44px;
@@ -1167,11 +1160,6 @@ body[data-theme="forest"] {
     text-align: left
 }
 
-.dp-theme-option:hover {
-    background: var(--card-hover);
-    border-color: var(--card-border-hover);
-    box-shadow: inset 0 0 0 1px #ffffff0a
-}
 
 .dp-theme-option.dp-selected {
     border-color: var(--card-border-hover);
@@ -1346,11 +1334,6 @@ body[data-theme="forest"] {
     transition: background .2s ease, border-color .2s ease, transform .2s ease
 }
 
-.dp-clock-offset-btn:hover {
-    background: var(--card-hover);
-    border-color: var(--card-border-hover);
-    transform: translateY(-1px)
-}
 
 .dp-clock-offset-value {
     min-width: 54px;
@@ -1545,12 +1528,6 @@ body[data-theme="forest"] {
     object-fit: contain
 }
 
-.dp-music-btn:hover {
-    background: var(--card-hover);
-    border-color: var(--card-border-hover);
-    box-shadow: inset 0 0 0 1px #ffffff0a;
-    transform: translateY(-1px)
-}
 
 .dp-music-btn.dp-muted {
     background: var(--danger-soft);
@@ -1605,12 +1582,6 @@ body[data-theme="forest"] {
     cursor: none !important;
 }
 
-.dp-app-item:hover {
-    background: var(--card-hover);
-    border-color: var(--card-border-hover);
-    box-shadow: inset 0 0 0 1px #ffffff0a;
-    transform: translateY(-1px)
-}
 
 .dp-app-item:active {
     transform: translateY(0)
@@ -1671,12 +1642,7 @@ body[data-theme="forest"] {
     transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow .2s
 }
 
-.dp-game-item:hover {
-    background: var(--card-hover);
-    border-color: var(--card-border-hover);
-    box-shadow: inset 0 0 0 1px #ffffff0a;
-    transform: translateY(-1px)
-}
+
 
 .dp-game-banner-wrap {
     width: 100%;
@@ -1736,10 +1702,7 @@ body[data-theme="forest"] {
     transition: none
 }
 
-.dp-slider:hover {
-    background: var(--slider-row-bg);
-    border-color: #ffffff14
-}
+
 
 .dp-slider-meta {
     display: flex;
@@ -1761,9 +1724,7 @@ body[data-theme="forest"] {
     transition: none
 }
 
-.dp-slider:hover .dp-slider-icon {
-    background: var(--accent-soft)
-}
+
 
 .dp-slider-icon img.dp-icon {
     width: 28px;
@@ -1771,9 +1732,6 @@ body[data-theme="forest"] {
     transition: none
 }
 
-.dp-slider-icon img.dp-icon:hover {
-    transform: none
-}
 
 .dp-slider-label {
     font-size: 15px;
@@ -1828,10 +1786,6 @@ body[data-theme="forest"] {
     cursor: none !important
 }
 
-.dp-slider-control .dp-slider-input::-webkit-slider-thumb:hover {
-    background: var(--slider-row-bg);
-    border-color: var(--accent)
-}
 
 .dp-slider-control .dp-slider-input:active::-webkit-slider-thumb {
     background: var(--slider-row-bg);
@@ -1859,31 +1813,19 @@ body[data-theme="forest"] {
     border: 3px solid var(--danger)
 }
 
-.dp-slider.dp-muted .dp-slider-control .dp-slider-input::-webkit-slider-thumb:hover {
-    border-color: var(--danger)
-}
 
 .dp-slider.dp-muted .dp-slider-control .dp-slider-input::-moz-range-thumb {
     border: 3px solid var(--danger)
 }
 
-.dp-slider.dp-muted .dp-slider-control .dp-slider-input::-moz-range-thumb:hover {
-    border-color: var(--danger)
-}
 
-.dp-slider-control .dp-slider-input::-moz-range-thumb:hover {
-    background: var(--slider-row-bg);
-    border-color: var(--accent)
-}
 
 .dp-slider-control .dp-slider-input:active::-moz-range-thumb {
     background: var(--slider-row-bg-hover);
     cursor: none !important
 }
 
-.dp-slider-control .dp-slider-input:hover {
-    accent-color: var(--accent)
-}
+
 
 .dp-slider-control .dp-slider-value {
     width: 56px;
