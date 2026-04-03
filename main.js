@@ -12,6 +12,11 @@ export const Manager = new class {
         this.connected = false;
         this.connectionState = 'disconnected';
         this.reconnectTimer = null;
+        this.keepAliveTimer = null;
+        this.statePollTimer = null;
+        this.messageTimeout = null;
+        this.lastMusicUpdateAt = 0;
+        this.lastSliderUpdateAt = 0;
 
         this.sliderData = [];
         this.sliders = []; // list of Slider instances
@@ -88,28 +93,39 @@ export const Manager = new class {
     }
 
     connectWebSocket() {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+        if (this.ws && (
+            this.ws.readyState === WebSocket.OPEN ||
+            this.ws.readyState === WebSocket.CONNECTING
+        )) return;
 
         this.setConnectionState('reconnecting');
         const url = `ws://${this.SERVER_IP}:${this.SERVER_PORT}/ws`;
-        this.ws = new WebSocket(url);
+        const socket = new WebSocket(url);
+        this.ws = socket;
 
-        this.ws.onopen = () => {
+        socket.onopen = () => {
+            if (this.ws !== socket) {
+                try { socket.close(); } catch { }
+                return;
+            }
             console.log("[WS] Connected to server");
             clearTimeout(this.reconnectTimer);
             this.connected = true;
             this.reconnectTimer = null;
             this.setConnectionState('connected');
+            this.startConnectionMaintenance();
             this.requestInitialData();
         };
 
-        this.ws.onmessage = (event) => {
+        socket.onmessage = (event) => {
+            if (this.ws !== socket) return;
             // Reset idle timeout on every message
             clearTimeout(this.messageTimeout);
             
             // Handle raw heartbeat string first
             if (event.data === "PING") {
                 console.log("[WS] Heartbeat received");
+                this.sendSocketText("PONG");
                 this.setupIdleTimeout();
                 return;
             }
@@ -123,11 +139,17 @@ export const Manager = new class {
                     const value = msg[key];
                     const k = key.toLowerCase();
                     switch (k) {
-                        case "sliders": this.updateSliderData(value); break;
+                        case "sliders":
+                            this.lastSliderUpdateAt = Date.now();
+                            this.updateSliderData(value);
+                            break;
                         case "apps": this.updateAppData(value); break;
                         case "applications": this.updateAppData(value); break; // backend variant
                         case "games": this.updateGameData(value); break;
-                        case "music": this.updateMusicNowPlaying(value); break;
+                        case "music":
+                            this.lastMusicUpdateAt = Date.now();
+                            this.updateMusicNowPlaying(value);
+                            break;
                         default: this[key] = value; console.log(`[UPDATE] ${key} updated`, value); break;
                     }
                 }
@@ -139,16 +161,20 @@ export const Manager = new class {
             this.setupIdleTimeout();
         };
 
-        this.ws.onclose = () => {
+        socket.onclose = () => {
+            if (this.ws !== socket) return;
             console.log("[WS] Disconnected, reconnecting in 2s...");
+            this.stopConnectionMaintenance();
             this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
             this.connected = false;
+            this.ws = null;
             this.setConnectionState('reconnecting');
         };
 
-        this.ws.onerror = (err) => {
+        socket.onerror = (err) => {
+            if (this.ws !== socket) return;
             console.error("[WS ERROR]", err);
-            if (!this.connected) {
+            if (!this.connected && socket.readyState !== WebSocket.CONNECTING) {
                 this.setConnectionState('disconnected');
             }
         };
@@ -171,17 +197,59 @@ export const Manager = new class {
     requestInitialData() {
         // ask server for current state so UI is hydrated after fresh connect/reconnect
         const packets = [
+            "10=sliders=get",
             "10=applications=get",
             "10=music=get"
         ];
         packets.forEach(p => this.sendPacket(p));
     }
 
-    sendPacket(value) {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    startConnectionMaintenance() {
+        this.stopConnectionMaintenance();
+        this.keepAliveTimer = setInterval(() => {
+            this.sendSocketText("PING");
+        }, 20000);
+        this.statePollTimer = setInterval(() => {
+            if (!this.connected) return;
+            this.requestFreshState();
+        }, 15000);
+    }
+
+    stopConnectionMaintenance() {
+        clearInterval(this.keepAliveTimer);
+        clearInterval(this.statePollTimer);
+        clearTimeout(this.messageTimeout);
+        this.keepAliveTimer = null;
+        this.statePollTimer = null;
+        this.messageTimeout = null;
+    }
+
+    sendSocketText(value) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+        try {
             this.ws.send(value);
-            this.recordCommand(value);
+            return true;
+        } catch (err) {
+            console.warn("[WS] Failed to send socket text:", err);
+            return false;
         }
+    }
+
+    sendPacket(value) {
+        if (this.sendSocketText(value)) {
+            this.recordCommand(value);
+            return true;
+        }
+        return false;
+    }
+
+    requestFreshState() {
+        const now = Date.now();
+        const packets = ["10=sliders=get"];
+        if (now - this.lastMusicUpdateAt > 10000) {
+            packets.push("10=music=get");
+        }
+        packets.forEach(packet => this.sendPacket(packet));
     }
 
     recordCommand(command) {
@@ -394,16 +462,18 @@ export const Manager = new class {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
         this.connected = false;
+        this.stopConnectionMaintenance();
         this.setConnectionState('reconnecting');
 
-        if (this.ws) {
+        const socket = this.ws;
+        this.ws = null;
+
+        if (socket) {
             try {
-                this.ws.onclose = null;
-                this.ws.close();
+                socket.close();
             } catch (err) {
                 console.warn('[WS] Failed to close existing socket before reconnect:', err);
             }
-            this.ws = null;
         }
 
         this.connectWebSocket();
@@ -941,6 +1011,10 @@ function installSwipeScroll(container) {
     if (!container || container.__dpSwipeScrollInstalled) return;
     container.__dpSwipeScrollInstalled = true;
 
+    const MIN_VELOCITY = 0.12;
+    const FRICTION = 0.94;
+    const MAX_VELOCITY = 3.2;
+
     let activePointerId = null;
     let startX = 0;
     let startY = 0;
@@ -948,6 +1022,64 @@ function installSwipeScroll(container) {
     let dragging = false;
     let suppressClickUntil = 0;
     let captured = false;
+    let inertiaFrame = 0;
+    let velocityY = 0;
+    let lastMoveY = 0;
+    let lastMoveTime = 0;
+    let lastFrameTime = 0;
+
+    const stopMomentum = () => {
+        if (inertiaFrame) {
+            cancelAnimationFrame(inertiaFrame);
+            inertiaFrame = 0;
+        }
+        velocityY = 0;
+        lastFrameTime = 0;
+    };
+
+    const startMomentum = () => {
+        if (Math.abs(velocityY) < MIN_VELOCITY) {
+            stopMomentum();
+            return;
+        }
+
+        if (inertiaFrame) {
+            cancelAnimationFrame(inertiaFrame);
+            inertiaFrame = 0;
+        }
+        lastFrameTime = 0;
+
+        const step = (now) => {
+            if (activePointerId !== null) {
+                stopMomentum();
+                return;
+            }
+
+            if (!lastFrameTime) lastFrameTime = now;
+            const elapsed = Math.min(32, now - lastFrameTime || 16);
+            lastFrameTime = now;
+
+            const delta = velocityY * elapsed;
+            const before = container.scrollTop;
+            container.scrollTop -= delta;
+            const applied = before - container.scrollTop;
+
+            if (Math.abs(applied) < 0.1 && Math.abs(delta) > 0.1) {
+                stopMomentum();
+                return;
+            }
+
+            velocityY *= Math.pow(FRICTION, elapsed / 16);
+            if (Math.abs(velocityY) < MIN_VELOCITY) {
+                stopMomentum();
+                return;
+            }
+
+            inertiaFrame = requestAnimationFrame(step);
+        };
+
+        inertiaFrame = requestAnimationFrame(step);
+    };
 
     const finishDrag = () => {
         if (captured && activePointerId !== null && typeof container.releasePointerCapture === 'function') {
@@ -962,6 +1094,7 @@ function installSwipeScroll(container) {
         }
         dragging = false;
         container.classList.remove('dp-drag-scrolling');
+        startMomentum();
     };
 
     container.addEventListener('pointerdown', (event) => {
@@ -973,11 +1106,15 @@ function installSwipeScroll(container) {
             }
         }
 
+        stopMomentum();
         activePointerId = event.pointerId;
         startX = event.clientX;
         startY = event.clientY;
         startScrollTop = container.scrollTop;
         dragging = false;
+        lastMoveY = event.clientY;
+        lastMoveTime = performance.now();
+        velocityY = 0;
     });
 
     container.addEventListener('pointermove', (event) => {
@@ -985,6 +1122,7 @@ function installSwipeScroll(container) {
 
         const deltaX = event.clientX - startX;
         const deltaY = event.clientY - startY;
+        const now = performance.now();
 
         if (!dragging) {
             if (Math.abs(deltaY) < 8) return;
@@ -1000,6 +1138,11 @@ function installSwipeScroll(container) {
         }
 
         container.scrollTop = startScrollTop - deltaY;
+        const elapsed = Math.max(1, now - lastMoveTime);
+        const moveDelta = event.clientY - lastMoveY;
+        velocityY = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, moveDelta / elapsed));
+        lastMoveY = event.clientY;
+        lastMoveTime = now;
         event.preventDefault();
     }, { passive: false });
 
