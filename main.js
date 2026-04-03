@@ -1027,6 +1027,7 @@ function installSwipeScroll(container) {
     let lastMoveY = 0;
     let lastMoveTime = 0;
     let lastFrameTime = 0;
+    let recentMoves = [];
 
     const stopMomentum = () => {
         if (inertiaFrame) {
@@ -1035,6 +1036,23 @@ function installSwipeScroll(container) {
         }
         velocityY = 0;
         lastFrameTime = 0;
+    };
+
+    const recordMove = (y, time) => {
+        recentMoves.push({ y, time });
+        const cutoff = time - 120;
+        while (recentMoves.length > 0 && recentMoves[0].time < cutoff) {
+            recentMoves.shift();
+        }
+    };
+
+    const updateVelocityFromHistory = () => {
+        if (recentMoves.length < 2) return;
+        const first = recentMoves[0];
+        const last = recentMoves[recentMoves.length - 1];
+        const elapsed = Math.max(1, last.time - first.time);
+        const moveDelta = last.y - first.y;
+        velocityY = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, moveDelta / elapsed));
     };
 
     const startMomentum = () => {
@@ -1114,6 +1132,7 @@ function installSwipeScroll(container) {
         dragging = false;
         lastMoveY = event.clientY;
         lastMoveTime = performance.now();
+        recentMoves = [{ y: event.clientY, time: lastMoveTime }];
         velocityY = 0;
     });
 
@@ -1143,6 +1162,8 @@ function installSwipeScroll(container) {
         velocityY = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, moveDelta / elapsed));
         lastMoveY = event.clientY;
         lastMoveTime = now;
+        recordMove(event.clientY, now);
+        updateVelocityFromHistory();
         event.preventDefault();
     }, { passive: false });
 
