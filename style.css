@@ -6,14 +6,32 @@ body {
     font-family: ui-sans-serif, system-ui, sans-serif;
     overflow: hidden;
     user-select: none;
+    cursor: none !important;
     background-color: var(--bg, #09090b)
 }
 
 *,
 *::before,
 *::after {
+    cursor: none !important;
     -webkit-user-drag: none;
     user-drag: none;
+}
+
+input[type=range] {
+    cursor: none !important
+}
+
+input[type=range]::-webkit-slider-thumb {
+    cursor: none !important
+}
+
+input[type=range]::-moz-range-thumb {
+    cursor: none !important
+}
+
+input[type=range]::-ms-thumb {
+    cursor: none !important
 }
 
 :root {
@@ -776,6 +794,7 @@ body[data-theme="forest"] {
     border: 1px solid transparent;
     border-radius: 18px;
     color: #fff;
+    cursor: none;
     opacity: .7;
     transition: transform 0.2s, opacity 0.2s, background 0.2s, border-color 0.2s, box-shadow .2s
 }
@@ -865,6 +884,7 @@ body[data-theme="forest"] {
     bottom: 0;
     width: 85vw;
     padding: 2vw 2.5vw;
+    cursor: none !important;
     box-sizing: border-box;
     overflow-y: auto;
     scrollbar-width: none;
@@ -895,6 +915,7 @@ body[data-theme="forest"] {
     border: 1px solid var(--card-border);
     border-radius: 16px;
     color: var(--text);
+    cursor: none;
     text-align: left;
     transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow .2s
 }
@@ -941,6 +962,7 @@ body[data-theme="forest"] {
 
 .dp-switch-slider {
     position: absolute;
+    cursor: none;
     inset: 0;
     background: var(--panel-2);
     border: 1px solid var(--card-border);
@@ -999,6 +1021,7 @@ body[data-theme="forest"] {
     background: var(--card);
     border: 1px solid var(--card-border);
     border-radius: 16px;
+    cursor: none
 }
 
 .dp-theme-section-compact {
@@ -1071,6 +1094,7 @@ body[data-theme="forest"] {
     background-size: 100% 100%;
     background-repeat: no-repeat;
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: none !important;
 }
 
 .dp-setting-brightness-value {
@@ -1098,6 +1122,7 @@ body[data-theme="forest"] {
     border-radius: 18px;
     background: var(--card);
     border: 3px solid var(--accent);
+    cursor: none !important;
 }
 
 .dp-setting-brightness-input::-moz-range-track {
@@ -1113,6 +1138,7 @@ body[data-theme="forest"] {
     border-radius: 18px;
     background: var(--card);
     border: 3px solid var(--accent);
+    cursor: none !important;
 }
 
 .dp-theme-options {
@@ -1130,6 +1156,7 @@ body[data-theme="forest"] {
     border: 1px solid var(--card-border);
     border-radius: 12px;
     color: var(--text);
+    cursor: none;
     transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow .2s;
     text-align: left
 }
@@ -1304,6 +1331,7 @@ body[data-theme="forest"] {
     font-size: 14px;
     font-weight: 700;
     letter-spacing: .2px;
+    cursor: none !important;
     transition: background .2s ease, border-color .2s ease, transform .2s ease
 }
 
@@ -1557,6 +1585,7 @@ body[data-theme="forest"] {
     border: 1px solid var(--card-border);
     border-radius: 16px;
     color: var(--text);
+    cursor: none !important;
     transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow .2s
 }
 
@@ -1564,7 +1593,15 @@ body[data-theme="forest"] {
 .dp-app-item-icon,
 .dp-app-item-title {
     -webkit-user-drag: none;
+    cursor: none !important;
     user-select: none;
+}
+
+.dp-apps-list,
+.dp-apps-list * ,
+.dp-apps-panel,
+.dp-apps-panel * {
+    cursor: none !important;
 }
 
 
@@ -1742,6 +1779,7 @@ body[data-theme="forest"] {
     background-size: 100% 100%;
     background-repeat: no-repeat;
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: none !important
 }
 
 .dp-slider.dp-zero .dp-slider-control .dp-slider-input,
@@ -1755,6 +1793,7 @@ body[data-theme="forest"] {
     border-radius: 10px;
     height: 18px;
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: none !important
 }
 
 .dp-slider-control .dp-slider-input::-webkit-slider-thumb {
@@ -1766,11 +1805,13 @@ body[data-theme="forest"] {
     background: var(--slider-row-bg);
     border: 3px solid var(--accent);
     margin-top: -27px;
+    cursor: none !important
 }
 
 
 .dp-slider-control .dp-slider-input:active::-webkit-slider-thumb {
     background: var(--slider-row-bg);
+    cursor: none !important
 }
 
 .dp-slider-control .dp-slider-input::-moz-range-track {
@@ -1778,6 +1819,7 @@ body[data-theme="forest"] {
     border-radius: 10px;
     height: 18px;
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: none !important
 }
 
 .dp-slider-control .dp-slider-input::-moz-range-thumb {
@@ -1786,6 +1828,7 @@ body[data-theme="forest"] {
     border-radius: 18px;
     background: var(--slider-row-bg);
     border: 3px solid var(--accent);
+    cursor: none !important
 }
 
 .dp-slider.dp-muted .dp-slider-control .dp-slider-input::-webkit-slider-thumb {
@@ -1801,6 +1844,7 @@ body[data-theme="forest"] {
 
 .dp-slider-control .dp-slider-input:active::-moz-range-thumb {
     background: var(--slider-row-bg-hover);
+    cursor: none !important
 }
 
 
