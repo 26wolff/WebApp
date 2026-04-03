@@ -1406,7 +1406,7 @@ body[data-theme="forest"] {
 .dp-music-now {
     width: min(620px, 82vw);
     display: grid;
-    grid-template-columns: 80px 1fr 100px;
+    grid-template-columns: 80px minmax(0, 1fr) clamp(84px, 12vw, 108px);
     gap: 8px;
     height:25vh;
     align-items: center;
@@ -1461,12 +1461,12 @@ body[data-theme="forest"] {
 }
 
 .dp-music-open-btn {
-    width: 25vh;
-    height: 25vh;
+    width: clamp(84px, 12vw, 108px);
+    height: clamp(84px, 12vw, 108px);
     border-radius: 12px;
     flex-shrink: 0;
-    position:relative;
-    left:-2vw;
+    justify-self: end;
+    align-self: center;
     padding: 0
 }
 
