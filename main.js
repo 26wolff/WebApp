@@ -2,8 +2,10 @@
 export const Manager = new class {
     constructor() {
         // ===== CONFIGURATION =====
-        this.SERVER_IP = "";
+        this.SERVER_IP = "192.168.2.176";
         this.SERVER_PORT = "3000";
+        this.SERVER_IP_QUERY_KEY = "server";
+        this.SERVER_IP_STORAGE_KEY = "dp-server-ip";
         this.CONNECT_TIMEOUT_MS = 1500;
         this.RECONNECT_DELAY_MS = 2000;
         this.IDLE_TIMEOUT_MS = 40000;
@@ -43,6 +45,7 @@ export const Manager = new class {
     }
 
     startup() {
+        this.loadServerConnectionConfig();
         this.loadLocalSliderData();
         document.addEventListener("DOMContentLoaded", () => {
             this.domReady = true;
@@ -52,6 +55,23 @@ export const Manager = new class {
         
         this.updateTrayIconsConnection();
 
+    }
+
+    loadServerConnectionConfig() {
+        const params = new URLSearchParams(window.location.search || '');
+        const queryServerIp = this.normalizeConnectionTarget(params.get(this.SERVER_IP_QUERY_KEY) || '');
+        const savedServerIp = this.normalizeConnectionTarget(localStorage.getItem(this.SERVER_IP_STORAGE_KEY) || '');
+        const preferredServerIp = queryServerIp || savedServerIp;
+
+        if (this.isPrivateLanIpv4(preferredServerIp)) {
+            this.SERVER_IP = preferredServerIp;
+            localStorage.setItem(this.SERVER_IP_STORAGE_KEY, preferredServerIp);
+            return;
+        }
+
+        if (this.isPrivateLanIpv4(this.SERVER_IP)) {
+            localStorage.setItem(this.SERVER_IP_STORAGE_KEY, this.SERVER_IP);
+        }
     }
 
     loadLocalSliderData() {
@@ -145,11 +165,9 @@ export const Manager = new class {
             addTarget(normalizedServerHost);
         }
 
-        [normalizedCurrentHost, normalizedServerHost]
-            .filter(host => this.isPrivateLanIpv4(host))
-            .forEach(host => {
-                this.buildSubnetTargets(host).forEach(addTarget);
-            });
+        if (this.isPrivateLanIpv4(normalizedCurrentHost)) {
+            addTarget(normalizedCurrentHost);
+        }
 
         if (!targets.length && normalizedServerHost && !this.isLoopbackHost(normalizedServerHost)) {
             addTarget(normalizedServerHost);
@@ -297,6 +315,9 @@ export const Manager = new class {
     handleConnectedSocket(socket, serverIp, url) {
         if (this.ws !== socket) return;
         this.SERVER_IP = serverIp;
+        if (this.isPrivateLanIpv4(serverIp)) {
+            localStorage.setItem(this.SERVER_IP_STORAGE_KEY, serverIp);
+        }
         console.log(`[WS] Connected to server at ${url}`);
         this.clearReconnectTimer();
         this.connected = true;
