@@ -4,6 +4,8 @@ export const Manager = new class {
         // ===== CONFIGURATION =====
         this.SERVER_IP = "192.168.2.175";
         this.SERVER_PORT = "3000";
+        this.LAST_SERVER_IP_KEY = "dp-last-server-ip";
+        this.CONNECT_TIMEOUT_MS = 1500;
         // ========================== 
 
         this.micTimeout;
@@ -15,6 +17,7 @@ export const Manager = new class {
         this.keepAliveTimer = null;
         this.statePollTimer = null;
         this.messageTimeout = null;
+        this.connectAttemptId = 0;
         this.lastMusicUpdateAt = 0;
         this.lastSliderUpdateAt = 0;
 
@@ -99,16 +102,123 @@ export const Manager = new class {
         )) return;
 
         this.setConnectionState('reconnecting');
-        const url = `ws://${this.SERVER_IP}:${this.SERVER_PORT}/ws`;
+        const targets = this.getServerTargets();
+        const attemptId = ++this.connectAttemptId;
+        this.tryConnectToTargets(targets, attemptId, 0);
+    }
+
+    getServerTargets() {
+        const seen = new Set();
+        const targets = [];
+        const add = (ip) => {
+            if (!this.isIpv4Address(ip) || seen.has(ip)) return;
+            seen.add(ip);
+            targets.push(ip);
+        };
+
+        const lastServerIp = localStorage.getItem(this.LAST_SERVER_IP_KEY);
+        add(lastServerIp);
+        add(this.SERVER_IP);
+
+        const currentHost = window.location && typeof window.location.hostname === 'string'
+            ? window.location.hostname.trim()
+            : '';
+        add(currentHost);
+
+        const subnetSeeds = [];
+        [lastServerIp, this.SERVER_IP, currentHost].forEach(ip => {
+            if (this.isIpv4Address(ip)) subnetSeeds.push(ip);
+        });
+
+        subnetSeeds.forEach(ip => {
+            this.buildSubnetTargets(ip).forEach(add);
+        });
+
+        return targets;
+    }
+
+    buildSubnetTargets(ip) {
+        if (!this.isIpv4Address(ip)) return [];
+
+        const parts = ip.split('.').map(Number);
+        const prefix = `${parts[0]}.${parts[1]}.${parts[2]}`;
+        const preferred = parts[3];
+        const octets = [];
+
+        for (let delta = 0; delta < 254; delta++) {
+            const lower = preferred - delta;
+            const upper = preferred + delta;
+
+            if (lower >= 1 && lower <= 254) octets.push(lower);
+            if (delta !== 0 && upper >= 1 && upper <= 254) octets.push(upper);
+        }
+
+        return octets.map(last => `${prefix}.${last}`);
+    }
+
+    isIpv4Address(value) {
+        if (typeof value !== 'string') return false;
+        const match = value.trim().match(/^(\d{1,3}\.){3}\d{1,3}$/);
+        if (!match) return false;
+        return value.split('.').every(part => {
+            const num = Number(part);
+            return Number.isInteger(num) && num >= 0 && num <= 255;
+        });
+    }
+
+    tryConnectToTargets(targets, attemptId, index) {
+        if (attemptId !== this.connectAttemptId) return;
+
+        if (index >= targets.length) {
+            console.warn("[WS] No server responded on the current subnet; retrying in 2s...");
+            this.ws = null;
+            this.connected = false;
+            this.setConnectionState('disconnected');
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
+            return;
+        }
+
+        const serverIp = targets[index];
+        const url = `ws://${serverIp}:${this.SERVER_PORT}/ws`;
         const socket = new WebSocket(url);
+        let opened = false;
+        let failed = false;
+        let connectTimeout = null;
+
         this.ws = socket;
+        console.log(`[WS ATTEMPT] ${url}`);
+
+        const tryNextTarget = (reason) => {
+            if (failed || opened || attemptId !== this.connectAttemptId) return;
+            failed = true;
+            clearTimeout(connectTimeout);
+            if (this.ws === socket) {
+                this.ws = null;
+            }
+            console.warn(reason);
+            try {
+                if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+                    socket.close();
+                }
+            } catch { }
+            this.tryConnectToTargets(targets, attemptId, index + 1);
+        };
+
+        connectTimeout = setTimeout(() => {
+            tryNextTarget(`[WS] Connection attempt timed out: ${url}`);
+        }, this.CONNECT_TIMEOUT_MS);
 
         socket.onopen = () => {
-            if (this.ws !== socket) {
+            if (attemptId !== this.connectAttemptId || this.ws !== socket) {
                 try { socket.close(); } catch { }
                 return;
             }
-            console.log("[WS] Connected to server");
+            opened = true;
+            clearTimeout(connectTimeout);
+            this.SERVER_IP = serverIp;
+            localStorage.setItem(this.LAST_SERVER_IP_KEY, serverIp);
+            console.log(`[WS] Connected to server at ${url}`);
             clearTimeout(this.reconnectTimer);
             this.connected = true;
             this.reconnectTimer = null;
@@ -163,6 +273,11 @@ export const Manager = new class {
 
         socket.onclose = () => {
             if (this.ws !== socket) return;
+            clearTimeout(connectTimeout);
+            if (!opened) {
+                tryNextTarget(`[WS] Attempt failed: ${url}`);
+                return;
+            }
             console.log("[WS] Disconnected, reconnecting in 2s...");
             this.stopConnectionMaintenance();
             this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
@@ -173,7 +288,11 @@ export const Manager = new class {
 
         socket.onerror = (err) => {
             if (this.ws !== socket) return;
-            console.error("[WS ERROR]", err);
+            console.error(`[WS ERROR] ${url}`, err);
+            if (!opened && socket.readyState !== WebSocket.CONNECTING) {
+                tryNextTarget(`[WS] Socket error before connect: ${url}`);
+                return;
+            }
             if (!this.connected && socket.readyState !== WebSocket.CONNECTING) {
                 this.setConnectionState('disconnected');
             }
@@ -245,7 +364,7 @@ export const Manager = new class {
 
     requestFreshState() {
         const now = Date.now();
-        const packets = ["10=sliders=get"];
+        const packets = [];
         if (now - this.lastMusicUpdateAt > 10000) {
             packets.push("10=music=get");
         }
