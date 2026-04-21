@@ -127,12 +127,15 @@ export const Manager = new class {
         const currentHost = window.location && typeof window.location.hostname === 'string'
             ? window.location.hostname.trim()
             : '';
-        addTarget(currentHost);
         this.buildSubnetTargets(currentHost).forEach(addTarget);
 
         if (this.isIpv4Address(this.SERVER_IP)) {
-            addTarget(this.SERVER_IP);
             this.buildSubnetTargets(this.SERVER_IP).forEach(addTarget);
+        }
+
+        if (!targets.length) {
+            addTarget(currentHost);
+            addTarget(this.SERVER_IP);
         }
 
         return targets;
@@ -160,7 +163,7 @@ export const Manager = new class {
             const lower = preferred - delta;
             const upper = preferred + delta;
 
-            if (lower >= 1 && lower <= 254) octets.push(lower);
+            if (delta !== 0 && lower >= 1 && lower <= 254) octets.push(lower);
             if (delta !== 0 && upper >= 1 && upper <= 254) octets.push(upper);
         }
 
