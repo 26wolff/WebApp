@@ -2,10 +2,11 @@
 export const Manager = new class {
     constructor() {
         // ===== CONFIGURATION =====
-        this.SERVER_IP = "192.168.2.175";
+        this.SERVER_IP = "";
         this.SERVER_PORT = "3000";
-        this.LAST_SERVER_IP_KEY = "dp-last-server-ip";
         this.CONNECT_TIMEOUT_MS = 1500;
+        this.RECONNECT_DELAY_MS = 2000;
+        this.IDLE_TIMEOUT_MS = 40000;
         // ========================== 
 
         this.micTimeout;
@@ -102,7 +103,13 @@ export const Manager = new class {
         )) return;
 
         this.setConnectionState('reconnecting');
+        this.clearReconnectTimer();
         const targets = this.getServerTargets();
+        if (!targets.length) {
+            console.warn("[WS] No valid connection targets found; retrying soon...");
+            this.scheduleReconnect('disconnected');
+            return;
+        }
         const attemptId = ++this.connectAttemptId;
         this.tryConnectToTargets(targets, attemptId, 0);
     }
@@ -110,31 +117,35 @@ export const Manager = new class {
     getServerTargets() {
         const seen = new Set();
         const targets = [];
-        const add = (ip) => {
-            if (!this.isIpv4Address(ip) || seen.has(ip)) return;
-            seen.add(ip);
-            targets.push(ip);
+        const addTarget = (value) => {
+            const host = this.normalizeConnectionTarget(value);
+            if (!host || seen.has(host)) return;
+            seen.add(host);
+            targets.push(host);
         };
-
-        const lastServerIp = localStorage.getItem(this.LAST_SERVER_IP_KEY);
-        add(lastServerIp);
-        add(this.SERVER_IP);
 
         const currentHost = window.location && typeof window.location.hostname === 'string'
             ? window.location.hostname.trim()
             : '';
-        add(currentHost);
+        addTarget(currentHost);
+        this.buildSubnetTargets(currentHost).forEach(addTarget);
 
-        const subnetSeeds = [];
-        [lastServerIp, this.SERVER_IP, currentHost].forEach(ip => {
-            if (this.isIpv4Address(ip)) subnetSeeds.push(ip);
-        });
-
-        subnetSeeds.forEach(ip => {
-            this.buildSubnetTargets(ip).forEach(add);
-        });
+        if (this.isIpv4Address(this.SERVER_IP)) {
+            addTarget(this.SERVER_IP);
+            this.buildSubnetTargets(this.SERVER_IP).forEach(addTarget);
+        }
 
         return targets;
+    }
+
+    normalizeConnectionTarget(value) {
+        if (typeof value !== 'string') return '';
+        const host = value.trim().toLowerCase();
+        if (!host) return '';
+        if (host === 'localhost') return host;
+        if (this.isIpv4Address(host)) return host;
+        if (/^[a-z0-9.-]+$/.test(host)) return host;
+        return '';
     }
 
     buildSubnetTargets(ip) {
@@ -166,21 +177,126 @@ export const Manager = new class {
         });
     }
 
+    clearReconnectTimer() {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+    }
+
+    scheduleReconnect(state = 'reconnecting') {
+        this.connected = false;
+        this.setConnectionState(state);
+        this.clearReconnectTimer();
+        this.reconnectTimer = setTimeout(() => this.connectWebSocket(), this.RECONNECT_DELAY_MS);
+    }
+
+    resetActiveConnection(socket = this.ws) {
+        if (socket && this.ws === socket) {
+            this.ws = null;
+        }
+        this.connected = false;
+        this.stopConnectionMaintenance();
+    }
+
+    startIdleTimeout() {
+        this.cancelIdleTimeout();
+        this.messageTimeout = setTimeout(() => {
+            console.warn("[WS] No message received for 40s (idle timeout), reconnecting...");
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.reconnectNow();
+            }
+        }, this.IDLE_TIMEOUT_MS);
+    }
+
+    cancelIdleTimeout() {
+        clearTimeout(this.messageTimeout);
+        this.messageTimeout = null;
+    }
+
+    buildSocketUrl(host) {
+        return `ws://${host}:${this.SERVER_PORT}/ws`;
+    }
+
+    handleSocketMessage(socket, event) {
+        if (this.ws !== socket) return;
+        this.startIdleTimeout();
+
+        if (event.data === "PING") {
+            console.log("[WS] Heartbeat received");
+            this.sendSocketText("PONG");
+            return;
+        }
+
+        try {
+            const msg = JSON.parse(event.data);
+            console.log("[WS MSG]", msg);
+
+            for (const key in msg) {
+                if (!msg.hasOwnProperty(key)) continue;
+                const value = msg[key];
+                const k = key.toLowerCase();
+                switch (k) {
+                    case "sliders":
+                        this.lastSliderUpdateAt = Date.now();
+                        this.updateSliderData(value);
+                        break;
+                    case "apps": this.updateAppData(value); break;
+                    case "applications": this.updateAppData(value); break;
+                    case "games": this.updateGameData(value); break;
+                    case "music":
+                        this.lastMusicUpdateAt = Date.now();
+                        this.updateMusicNowPlaying(value);
+                        break;
+                    default: this[key] = value; console.log(`[UPDATE] ${key} updated`, value); break;
+                }
+            }
+        } catch (err) {
+            console.warn("[WS] Failed to parse message:", err);
+        }
+    }
+
+    handleConnectedSocket(socket, serverIp, url) {
+        if (this.ws !== socket) return;
+        this.SERVER_IP = serverIp;
+        console.log(`[WS] Connected to server at ${url}`);
+        this.clearReconnectTimer();
+        this.connected = true;
+        this.setConnectionState('connected');
+        this.startConnectionMaintenance();
+        this.startIdleTimeout();
+        this.requestInitialData();
+    }
+
+    handleDisconnectedSocket(socket, opened, url, tryNextTarget) {
+        if (this.ws !== socket) return;
+        if (!opened) {
+            tryNextTarget(`[WS] Attempt failed: ${url}`);
+            return;
+        }
+        console.log("[WS] Disconnected, reconnecting soon...");
+        this.resetActiveConnection(socket);
+        this.scheduleReconnect('reconnecting');
+    }
+
+    handleSocketError(socket, opened, url, err, tryNextTarget) {
+        if (this.ws !== socket) return;
+        console.error(`[WS ERROR] ${url}`, err);
+        if (!opened && socket.readyState !== WebSocket.CONNECTING) {
+            tryNextTarget(`[WS] Socket error before connect: ${url}`);
+        }
+    }
+
     tryConnectToTargets(targets, attemptId, index) {
         if (attemptId !== this.connectAttemptId) return;
 
         if (index >= targets.length) {
-            console.warn("[WS] No server responded on the current subnet; retrying in 2s...");
-            this.ws = null;
-            this.connected = false;
-            this.setConnectionState('disconnected');
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
+            console.warn("[WS] No server responded on the current target list; retrying soon...");
+            this.resetActiveConnection();
+            this.scheduleReconnect('disconnected');
             return;
         }
 
         const serverIp = targets[index];
-        const url = `ws://${serverIp}:${this.SERVER_PORT}/ws`;
+        const url = this.buildSocketUrl(serverIp);
         const socket = new WebSocket(url);
         let opened = false;
         let failed = false;
@@ -193,9 +309,7 @@ export const Manager = new class {
             if (failed || opened || attemptId !== this.connectAttemptId) return;
             failed = true;
             clearTimeout(connectTimeout);
-            if (this.ws === socket) {
-                this.ws = null;
-            }
+            this.resetActiveConnection(socket);
             console.warn(reason);
             try {
                 if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
@@ -216,101 +330,23 @@ export const Manager = new class {
             }
             opened = true;
             clearTimeout(connectTimeout);
-            this.SERVER_IP = serverIp;
-            localStorage.setItem(this.LAST_SERVER_IP_KEY, serverIp);
-            console.log(`[WS] Connected to server at ${url}`);
-            clearTimeout(this.reconnectTimer);
-            this.connected = true;
-            this.reconnectTimer = null;
-            this.setConnectionState('connected');
-            this.startConnectionMaintenance();
-            this.requestInitialData();
+            this.handleConnectedSocket(socket, serverIp, url);
         };
 
-        socket.onmessage = (event) => {
-            if (this.ws !== socket) return;
-            // Reset idle timeout on every message
-            clearTimeout(this.messageTimeout);
-            
-            // Handle raw heartbeat string first
-            if (event.data === "PING") {
-                console.log("[WS] Heartbeat received");
-                this.sendSocketText("PONG");
-                this.setupIdleTimeout();
-                return;
-            }
-            
-            try {
-                const msg = JSON.parse(event.data);
-                console.log("[WS MSG]", msg);
-                
-                for (const key in msg) {
-                    if (!msg.hasOwnProperty(key)) continue;
-                    const value = msg[key];
-                    const k = key.toLowerCase();
-                    switch (k) {
-                        case "sliders":
-                            this.lastSliderUpdateAt = Date.now();
-                            this.updateSliderData(value);
-                            break;
-                        case "apps": this.updateAppData(value); break;
-                        case "applications": this.updateAppData(value); break; // backend variant
-                        case "games": this.updateGameData(value); break;
-                        case "music":
-                            this.lastMusicUpdateAt = Date.now();
-                            this.updateMusicNowPlaying(value);
-                            break;
-                        default: this[key] = value; console.log(`[UPDATE] ${key} updated`, value); break;
-                    }
-                }
-            } catch (err) {
-                console.warn("[WS] Failed to parse message:", err);
-            }
-            
-            // Setup timeout for next expected message
-            this.setupIdleTimeout();
-        };
+        socket.onmessage = (event) => this.handleSocketMessage(socket, event);
 
         socket.onclose = () => {
-            if (this.ws !== socket) return;
             clearTimeout(connectTimeout);
-            if (!opened) {
-                tryNextTarget(`[WS] Attempt failed: ${url}`);
-                return;
-            }
-            console.log("[WS] Disconnected, reconnecting in 2s...");
-            this.stopConnectionMaintenance();
-            this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
-            this.connected = false;
-            this.ws = null;
-            this.setConnectionState('reconnecting');
+            this.handleDisconnectedSocket(socket, opened, url, tryNextTarget);
         };
 
         socket.onerror = (err) => {
-            if (this.ws !== socket) return;
-            console.error(`[WS ERROR] ${url}`, err);
-            if (!opened && socket.readyState !== WebSocket.CONNECTING) {
-                tryNextTarget(`[WS] Socket error before connect: ${url}`);
-                return;
-            }
-            if (!this.connected && socket.readyState !== WebSocket.CONNECTING) {
-                this.setConnectionState('disconnected');
-            }
+            this.handleSocketError(socket, opened, url, err, tryNextTarget);
         };
-        
-        // Setup initial idle timeout
-        this.setupIdleTimeout();
     }
 
     setupIdleTimeout() {
-        clearTimeout(this.messageTimeout);
-        // If no message received for 40s (heartbeat every 20s + buffer), reconnect
-        this.messageTimeout = setTimeout(() => {
-            console.warn("[WS] No message received for 40s (idle timeout), reconnecting...");
-            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                this.reconnectNow();
-            }
-        }, 40000);
+        this.startIdleTimeout();
     }
 
     requestInitialData() {
@@ -337,10 +373,9 @@ export const Manager = new class {
     stopConnectionMaintenance() {
         clearInterval(this.keepAliveTimer);
         clearInterval(this.statePollTimer);
-        clearTimeout(this.messageTimeout);
+        this.cancelIdleTimeout();
         this.keepAliveTimer = null;
         this.statePollTimer = null;
-        this.messageTimeout = null;
     }
 
     sendSocketText(value) {
@@ -578,13 +613,10 @@ export const Manager = new class {
     }
 
     reconnectNow() {
-        clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = null;
-        this.connected = false;
-        this.stopConnectionMaintenance();
-        this.setConnectionState('reconnecting');
-
+        this.clearReconnectTimer();
         const socket = this.ws;
+        this.resetActiveConnection(socket);
+        this.setConnectionState('reconnecting');
         this.ws = null;
 
         if (socket) {
