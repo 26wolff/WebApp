@@ -1,8 +1,46 @@
 ﻿// manager.js
+const DP_SERVER_IP_STORAGE_KEY = 'dp-server-ip';
+const DEFAULT_SERVER_IP = '192.168.2.175';
+
+function normalizeIpv4Address(value) {
+    const text = String(value || '').trim();
+    if (!text) return null;
+    const parts = text.split('.');
+    if (parts.length !== 4) return null;
+
+    const normalized = [];
+    for (let i = 0; i < parts.length; i++) {
+        if (!/^\d{1,3}$/.test(parts[i])) return null;
+        const segment = Number(parts[i]);
+        if (!Number.isInteger(segment) || segment < 0 || segment > 255) return null;
+        normalized.push(String(segment));
+    }
+    return normalized.join('.');
+}
+
+function incrementIpv4Address(value, delta) {
+    const normalized = normalizeIpv4Address(value);
+    if (!normalized) return null;
+    const parts = normalized.split('.').map(Number);
+    const nextLastOctet = parts[3] + delta;
+    if (nextLastOctet < 0 || nextLastOctet > 255) return null;
+    parts[3] = nextLastOctet;
+    return parts.join('.');
+}
+
+function isUsableServerIp(value) {
+    const normalized = normalizeIpv4Address(value);
+    if (!normalized) return false;
+    const parts = normalized.split('.').map(Number);
+    if (parts[0] === 127) return false;
+    if (parts[0] === 0) return false;
+    return true;
+}
+
 export const Manager = new class {
     constructor() {
         // ===== CONFIGURATION =====
-        this.SERVER_IP = "192.168.2.175";
+        this.SERVER_IP = DEFAULT_SERVER_IP;
         this.SERVER_PORT = "3000";
         // ========================== 
 
@@ -34,6 +72,7 @@ export const Manager = new class {
             { id: "a4", name: "Calls", icon: "CallIcon", muteIcon: "CallOffIcon", code: "1=calls", volume: 50, is_muted: false },
             { id: "a5", name: "Microphone", icon: "MicIcon", muteIcon: "MicOffIcon", code: "0=mic", volume: 50, is_muted: false },
         ];
+        this.loadStoredServerIp();
         this.startup();
     }
 
@@ -90,6 +129,29 @@ export const Manager = new class {
         }
 
         loadViaXhr();
+    }
+
+    loadStoredServerIp() {
+        const savedIp = localStorage.getItem(DP_SERVER_IP_STORAGE_KEY);
+        this.SERVER_IP = isUsableServerIp(savedIp) ? normalizeIpv4Address(savedIp) : DEFAULT_SERVER_IP;
+        localStorage.setItem(DP_SERVER_IP_STORAGE_KEY, this.SERVER_IP);
+    }
+
+    getServerIp() {
+        return this.SERVER_IP;
+    }
+
+    setServerIp(nextIp, options = {}) {
+        const { reconnect = true } = options;
+        const normalized = normalizeIpv4Address(nextIp);
+        if (!normalized || !isUsableServerIp(normalized)) return false;
+        const changed = normalized !== this.SERVER_IP;
+        this.SERVER_IP = normalized;
+        localStorage.setItem(DP_SERVER_IP_STORAGE_KEY, normalized);
+        if (reconnect && changed) {
+            this.reconnectNow();
+        }
+        return true;
     }
 
     connectWebSocket() {
@@ -1256,14 +1318,40 @@ window.addEventListener('load', () => {
     if (reloadPageBtn) {
         reloadPageBtn.addEventListener('click', () => window.location.reload());
     }
-    const refreshAppsBtn = document.getElementById('dp-setting-refresh-apps');
-    if (refreshAppsBtn) {
-        refreshAppsBtn.addEventListener('click', () => Manager.sendPacket('10=applications=get'));
-    }
     const reconnectBtn = document.getElementById('dp-setting-reconnect');
     if (reconnectBtn) {
         reconnectBtn.addEventListener('click', () => Manager.reconnectNow());
     }
+    const serverIpDownTenBtn = document.getElementById('dp-setting-server-ip-down-ten');
+    const serverIpDownBtn = document.getElementById('dp-setting-server-ip-down');
+    const serverIpUpBtn = document.getElementById('dp-setting-server-ip-up');
+    const serverIpUpTenBtn = document.getElementById('dp-setting-server-ip-up-ten');
+    const serverIpValue = document.getElementById('dp-setting-server-ip-value');
+    const syncServerIpValue = () => {
+        if (serverIpValue) {
+            serverIpValue.textContent = Manager.getServerIp();
+        }
+    };
+    const adjustServerIp = (delta) => {
+        const nextIp = incrementIpv4Address(Manager.getServerIp(), delta);
+        if (!nextIp) return;
+        if (Manager.setServerIp(nextIp)) {
+            syncServerIpValue();
+        }
+    };
+    if (serverIpDownTenBtn) {
+        serverIpDownTenBtn.addEventListener('click', () => adjustServerIp(-10));
+    }
+    if (serverIpDownBtn) {
+        serverIpDownBtn.addEventListener('click', () => adjustServerIp(-1));
+    }
+    if (serverIpUpBtn) {
+        serverIpUpBtn.addEventListener('click', () => adjustServerIp(1));
+    }
+    if (serverIpUpTenBtn) {
+        serverIpUpTenBtn.addEventListener('click', () => adjustServerIp(10));
+    }
+    syncServerIpValue();
     const homeStatusBtn = document.getElementById('dp-home-status');
     if (homeStatusBtn) {
         homeStatusBtn.addEventListener('click', () => Manager.reconnectNow());
