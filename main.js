@@ -7,6 +7,7 @@ export const Manager = new class {
         this.CONNECT_TIMEOUT_MS = 1500;
         this.RECONNECT_DELAY_MS = 2000;
         this.IDLE_TIMEOUT_MS = 40000;
+        this.TARGET_SCAN_CONCURRENCY = 12;
         // ========================== 
 
         this.micTimeout;
@@ -111,7 +112,7 @@ export const Manager = new class {
             return;
         }
         const attemptId = ++this.connectAttemptId;
-        this.tryConnectToTargets(targets, attemptId, 0);
+        this.tryConnectToTargets(targets, attemptId);
     }
 
     getServerTargets() {
@@ -127,15 +128,31 @@ export const Manager = new class {
         const currentHost = window.location && typeof window.location.hostname === 'string'
             ? window.location.hostname.trim()
             : '';
-        this.buildSubnetTargets(currentHost).forEach(addTarget);
+        const normalizedCurrentHost = this.normalizeConnectionTarget(currentHost);
+        const normalizedServerHost = this.normalizeConnectionTarget(this.SERVER_IP);
 
-        if (this.isIpv4Address(this.SERVER_IP)) {
-            this.buildSubnetTargets(this.SERVER_IP).forEach(addTarget);
+        if (this.isLoopbackHost(normalizedCurrentHost)) {
+            addTarget(normalizedCurrentHost);
+            if (this.isLoopbackHost(normalizedServerHost)) addTarget(normalizedServerHost);
+            return targets;
         }
 
-        if (!targets.length) {
-            addTarget(currentHost);
-            addTarget(this.SERVER_IP);
+        if (normalizedCurrentHost && !this.isIpv4Address(normalizedCurrentHost)) {
+            addTarget(normalizedCurrentHost);
+        }
+
+        if (this.isPrivateLanIpv4(normalizedServerHost)) {
+            addTarget(normalizedServerHost);
+        }
+
+        [normalizedCurrentHost, normalizedServerHost]
+            .filter(host => this.isPrivateLanIpv4(host))
+            .forEach(host => {
+                this.buildSubnetTargets(host).forEach(addTarget);
+            });
+
+        if (!targets.length && normalizedServerHost && !this.isLoopbackHost(normalizedServerHost)) {
+            addTarget(normalizedServerHost);
         }
 
         return targets;
@@ -151,8 +168,28 @@ export const Manager = new class {
         return '';
     }
 
+    isLoopbackHost(value) {
+        const host = this.normalizeConnectionTarget(value);
+        if (!host) return false;
+        if (host === 'localhost') return true;
+        if (!this.isIpv4Address(host)) return false;
+        return host.startsWith('127.');
+    }
+
+    isPrivateLanIpv4(value) {
+        const host = this.normalizeConnectionTarget(value);
+        if (!this.isIpv4Address(host)) return false;
+        if (host.startsWith('127.')) return false;
+
+        const parts = host.split('.').map(Number);
+        if (parts[0] === 10) return true;
+        if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+        if (parts[0] === 192 && parts[1] === 168) return true;
+        return false;
+    }
+
     buildSubnetTargets(ip) {
-        if (!this.isIpv4Address(ip)) return [];
+        if (!this.isPrivateLanIpv4(ip)) return [];
 
         const parts = ip.split('.').map(Number);
         const prefix = `${parts[0]}.${parts[1]}.${parts[2]}`;
@@ -288,64 +325,114 @@ export const Manager = new class {
         }
     }
 
-    tryConnectToTargets(targets, attemptId, index) {
+    attachActiveSocketHandlers(socket, serverIp, url) {
+        socket.onmessage = (event) => this.handleSocketMessage(socket, event);
+        socket.onclose = () => {
+            this.handleDisconnectedSocket(socket, true, url, () => { });
+        };
+        socket.onerror = (err) => {
+            this.handleSocketError(socket, true, url, err, () => { });
+        };
+    }
+
+    probeSocketTarget(serverIp, attemptId) {
+        return new Promise((resolve) => {
+            const url = this.buildSocketUrl(serverIp);
+            const socket = new WebSocket(url);
+            let settled = false;
+
+            console.log(`[WS ATTEMPT] ${url}`);
+
+            const finish = (result) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(connectTimeout);
+                socket.onopen = null;
+                socket.onmessage = null;
+                socket.onclose = null;
+                socket.onerror = null;
+                resolve(result);
+            };
+
+            const fail = (reason) => {
+                console.warn(reason);
+                try {
+                    if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+                        socket.close();
+                    }
+                } catch { }
+                finish(null);
+            };
+
+            const connectTimeout = setTimeout(() => {
+                fail(`[WS] Connection attempt timed out: ${url}`);
+            }, this.CONNECT_TIMEOUT_MS);
+
+            socket.onopen = () => {
+                if (attemptId !== this.connectAttemptId) {
+                    fail(`[WS] Ignoring stale connection attempt: ${url}`);
+                    return;
+                }
+                finish({ socket, serverIp, url });
+            };
+
+            socket.onclose = () => finish(null);
+            socket.onerror = (err) => {
+                console.error(`[WS ERROR] ${url}`, err);
+                if (socket.readyState !== WebSocket.CONNECTING) {
+                    finish(null);
+                }
+            };
+        });
+    }
+
+    tryConnectToTargets(targets, attemptId) {
         if (attemptId !== this.connectAttemptId) return;
 
-        if (index >= targets.length) {
+        const concurrency = Math.max(1, Math.min(this.TARGET_SCAN_CONCURRENCY, targets.length));
+        let nextIndex = 0;
+        let active = 0;
+        let connected = false;
+
+        const finishFailureIfDone = () => {
+            if (connected || attemptId !== this.connectAttemptId) return;
+            if (active !== 0 || nextIndex < targets.length) return;
             console.warn("[WS] No server responded on the current target list; retrying soon...");
             this.resetActiveConnection();
             this.scheduleReconnect('disconnected');
-            return;
-        }
-
-        const serverIp = targets[index];
-        const url = this.buildSocketUrl(serverIp);
-        const socket = new WebSocket(url);
-        let opened = false;
-        let failed = false;
-        let connectTimeout = null;
-
-        this.ws = socket;
-        console.log(`[WS ATTEMPT] ${url}`);
-
-        const tryNextTarget = (reason) => {
-            if (failed || opened || attemptId !== this.connectAttemptId) return;
-            failed = true;
-            clearTimeout(connectTimeout);
-            this.resetActiveConnection(socket);
-            console.warn(reason);
-            try {
-                if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-                    socket.close();
-                }
-            } catch { }
-            this.tryConnectToTargets(targets, attemptId, index + 1);
         };
 
-        connectTimeout = setTimeout(() => {
-            tryNextTarget(`[WS] Connection attempt timed out: ${url}`);
-        }, this.CONNECT_TIMEOUT_MS);
+        const launchNext = () => {
+            while (!connected && active < concurrency && nextIndex < targets.length) {
+                const serverIp = targets[nextIndex++];
+                active++;
 
-        socket.onopen = () => {
-            if (attemptId !== this.connectAttemptId || this.ws !== socket) {
-                try { socket.close(); } catch { }
-                return;
+                this.probeSocketTarget(serverIp, attemptId).then((result) => {
+                    active--;
+
+                    if (!result) {
+                        launchNext();
+                        finishFailureIfDone();
+                        return;
+                    }
+
+                    if (connected || attemptId !== this.connectAttemptId) {
+                        try { result.socket.close(); } catch { }
+                        launchNext();
+                        finishFailureIfDone();
+                        return;
+                    }
+
+                    connected = true;
+                    this.ws = result.socket;
+                    this.attachActiveSocketHandlers(result.socket, result.serverIp, result.url);
+                    this.handleConnectedSocket(result.socket, result.serverIp, result.url);
+                });
             }
-            opened = true;
-            clearTimeout(connectTimeout);
-            this.handleConnectedSocket(socket, serverIp, url);
         };
 
-        socket.onmessage = (event) => this.handleSocketMessage(socket, event);
-
-        socket.onclose = () => {
-            clearTimeout(connectTimeout);
-            this.handleDisconnectedSocket(socket, opened, url, tryNextTarget);
-        };
-
-        socket.onerror = (err) => {
-            this.handleSocketError(socket, opened, url, err, tryNextTarget);
-        };
+        launchNext();
+        finishFailureIfDone();
     }
 
     setupIdleTimeout() {
