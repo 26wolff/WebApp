@@ -42,11 +42,6 @@ export const Manager = new class {
         // ===== CONFIGURATION =====
         this.SERVER_IP = DEFAULT_SERVER_IP;
         this.SERVER_PORT = "3000";
-        this.SERVER_IP_QUERY_KEY = "server";
-        this.SERVER_IP_STORAGE_KEY = "dp-server-ip";
-        this.CONNECT_TIMEOUT_MS = 1000;
-        this.RECONNECT_DELAY_MS = 2000;
-        this.TARGET_SCAN_CONCURRENCY = 16;
         // ========================== 
 
         this.micTimeout;
@@ -58,7 +53,6 @@ export const Manager = new class {
         this.keepAliveTimer = null;
         this.statePollTimer = null;
         this.messageTimeout = null;
-        this.connectAttemptId = 0;
         this.lastMusicUpdateAt = 0;
         this.lastSliderUpdateAt = 0;
 
@@ -83,7 +77,6 @@ export const Manager = new class {
     }
 
     startup() {
-        this.loadServerConnectionConfig();
         this.loadLocalSliderData();
         document.addEventListener("DOMContentLoaded", () => {
             this.domReady = true;
@@ -93,17 +86,6 @@ export const Manager = new class {
         
         this.updateTrayIconsConnection();
 
-    }
-
-    loadServerConnectionConfig() {
-        const params = new URLSearchParams(window.location.search || '');
-        const queryServer = this.normalizeConnectionTarget(params.get(this.SERVER_IP_QUERY_KEY) || '');
-        const savedServer = this.normalizeConnectionTarget(localStorage.getItem(this.SERVER_IP_STORAGE_KEY) || '');
-        const preferredServer = queryServer || savedServer;
-
-        if (preferredServer) {
-            this.SERVER_IP = preferredServer;
-        }
     }
 
     loadLocalSliderData() {
@@ -179,144 +161,41 @@ export const Manager = new class {
         )) return;
 
         this.setConnectionState('reconnecting');
-        this.clearReconnectTimer();
-        const targets = this.getServerTargets();
-        if (!targets.length) {
-            console.warn("[WS] No valid server targets found");
-            this.scheduleReconnect('disconnected');
-            return;
-        }
+        const url = `ws://${this.SERVER_IP}:${this.SERVER_PORT}/ws`;
+        const socket = new WebSocket(url);
+        this.ws = socket;
 
-        const attemptId = ++this.connectAttemptId;
-        this.tryConnectToTargets(targets, attemptId);
-    }
-
-    getServerTargets() {
-        const seen = new Set();
-        const targets = [];
-        const addTarget = (value) => {
-            const host = this.normalizeConnectionTarget(value);
-            if (!host || seen.has(host)) return;
-            seen.add(host);
-            targets.push(host);
+        socket.onopen = () => {
+            if (this.ws !== socket) {
+                try { socket.close(); } catch { }
+                return;
+            }
+            console.log("[WS] Connected to server");
+            clearTimeout(this.reconnectTimer);
+            this.connected = true;
+            this.reconnectTimer = null;
+            this.setConnectionState('connected');
+            this.startConnectionMaintenance();
+            this.requestInitialData();
         };
-
-        const currentHost = this.normalizeConnectionTarget(window.location && window.location.hostname || '');
-        const configuredHost = this.normalizeConnectionTarget(this.SERVER_IP);
-
-        if (this.isLoopbackHost(currentHost)) {
-            addTarget(currentHost);
-            if (this.isLoopbackHost(configuredHost)) addTarget(configuredHost);
-            return targets;
-        }
-
-        addTarget(configuredHost);
-        if (currentHost && !this.isPrivateLanIpv4(currentHost)) {
-            addTarget(currentHost);
-        }
-
-        if (this.isPrivateLanIpv4(currentHost)) {
-            this.buildSubnetTargets(currentHost, configuredHost).forEach(addTarget);
-        } else if (this.isPrivateLanIpv4(configuredHost)) {
-            this.buildSubnetTargets(configuredHost, configuredHost).forEach(addTarget);
-        }
-
-        addTarget(currentHost);
-        return targets;
-    }
-
-    normalizeConnectionTarget(value) {
-        if (typeof value !== 'string') return '';
-        const host = value.trim().toLowerCase();
-        if (!host) return '';
-        if (host === 'localhost') return host;
-        if (this.isIpv4Address(host)) return host;
-        if (/^[a-z0-9.-]+$/.test(host)) return host;
-        return '';
-    }
-
-    isIpv4Address(value) {
-        if (typeof value !== 'string') return false;
-        const parts = value.trim().split('.');
-        if (parts.length !== 4) return false;
-        return parts.every(part => {
-            if (!/^\d{1,3}$/.test(part)) return false;
-            const num = Number(part);
-            return Number.isInteger(num) && num >= 0 && num <= 255;
-        });
-    }
-
-    isLoopbackHost(value) {
-        const host = this.normalizeConnectionTarget(value);
-        return host === 'localhost' || host.startsWith('127.');
-    }
-
-    isPrivateLanIpv4(value) {
-        const host = this.normalizeConnectionTarget(value);
-        if (!this.isIpv4Address(host) || host.startsWith('127.')) return false;
-        const parts = host.split('.').map(Number);
-        return parts[0] === 10
-            || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
-            || (parts[0] === 192 && parts[1] === 168);
-    }
-
-    buildSubnetTargets(seedHost, preferredHost) {
-        if (!this.isPrivateLanIpv4(seedHost)) return [];
-
-        const seedParts = seedHost.split('.').map(Number);
-        const prefix = `${seedParts[0]}.${seedParts[1]}.${seedParts[2]}`;
-        const seedOctet = seedParts[3];
-        const preferredOctet = this.isPrivateLanIpv4(preferredHost) && preferredHost.startsWith(`${prefix}.`)
-            ? Number(preferredHost.split('.')[3])
-            : null;
-        const octets = [];
-
-        if (preferredOctet && preferredOctet >= 1 && preferredOctet <= 254 && preferredOctet !== seedOctet) {
-            octets.push(preferredOctet);
-        }
-
-        for (let octet = 1; octet <= 254; octet++) {
-            if (octet === seedOctet || octets.indexOf(octet) !== -1) continue;
-            octets.push(octet);
-        }
-
-        return octets.map(octet => `${prefix}.${octet}`);
-    }
-
-    buildSocketUrl(host) {
-        return `ws://${host}:${this.SERVER_PORT}/ws`;
-    }
-
-    clearReconnectTimer() {
-        clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = null;
-    }
-
-    scheduleReconnect(state) {
-        this.connected = false;
-        this.setConnectionState(state || 'reconnecting');
-        this.clearReconnectTimer();
-        this.reconnectTimer = setTimeout(() => this.connectWebSocket(), this.RECONNECT_DELAY_MS);
-    }
-
-    attachActiveSocketHandlers(socket, targetHost) {
-        const url = this.buildSocketUrl(targetHost);
 
         socket.onmessage = (event) => {
             if (this.ws !== socket) return;
+            // Reset idle timeout on every message
             clearTimeout(this.messageTimeout);
-
+            
+            // Handle raw heartbeat string first
             if (event.data === "PING") {
                 console.log("[WS] Heartbeat received");
                 this.sendSocketText("PONG");
                 this.setupIdleTimeout();
                 return;
             }
-
+            
             try {
                 const msg = JSON.parse(event.data);
                 console.log("[WS MSG]", msg);
-
+                
                 for (const key in msg) {
                     if (!msg.hasOwnProperty(key)) continue;
                     const value = msg[key];
@@ -339,113 +218,31 @@ export const Manager = new class {
             } catch (err) {
                 console.warn("[WS] Failed to parse message:", err);
             }
-
+            
+            // Setup timeout for next expected message
             this.setupIdleTimeout();
         };
 
         socket.onclose = () => {
             if (this.ws !== socket) return;
-            console.log(`[WS] Disconnected from ${url}, reconnecting soon...`);
+            console.log("[WS] Disconnected, reconnecting in 2s...");
             this.stopConnectionMaintenance();
+            this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
             this.connected = false;
             this.ws = null;
-            this.scheduleReconnect('reconnecting');
+            this.setConnectionState('reconnecting');
         };
 
         socket.onerror = (err) => {
             if (this.ws !== socket) return;
-            console.error(`[WS ERROR] ${url}`, err);
-        };
-    }
-
-    probeSocketTarget(targetHost, attemptId) {
-        return new Promise((resolve) => {
-            const url = this.buildSocketUrl(targetHost);
-            const socket = new WebSocket(url);
-            let finished = false;
-
-            const finish = (result) => {
-                if (finished) return;
-                finished = true;
-                clearTimeout(timeoutId);
-                socket.onopen = null;
-                socket.onclose = null;
-                socket.onerror = null;
-                resolve(result);
-            };
-
-            const timeoutId = setTimeout(() => {
-                try { socket.close(); } catch { }
-                finish(null);
-            }, this.CONNECT_TIMEOUT_MS);
-
-            socket.onopen = () => {
-                if (attemptId !== this.connectAttemptId) {
-                    try { socket.close(); } catch { }
-                    finish(null);
-                    return;
-                }
-                finish({ socket, targetHost });
-            };
-
-            socket.onclose = () => finish(null);
-            socket.onerror = () => {
-                if (socket.readyState !== WebSocket.CONNECTING) finish(null);
-            };
-        });
-    }
-
-    tryConnectToTargets(targets, attemptId) {
-        const concurrency = Math.max(1, Math.min(this.TARGET_SCAN_CONCURRENCY, targets.length));
-        let nextIndex = 0;
-        let active = 0;
-        let connected = false;
-
-        const maybeFail = () => {
-            if (connected || attemptId !== this.connectAttemptId) return;
-            if (active !== 0 || nextIndex < targets.length) return;
-            console.warn("[WS] No server responded; retrying soon...");
-            this.scheduleReconnect('disconnected');
-        };
-
-        const launchNext = () => {
-            while (!connected && active < concurrency && nextIndex < targets.length) {
-                const targetHost = targets[nextIndex++];
-                active++;
-                this.probeSocketTarget(targetHost, attemptId).then((result) => {
-                    active--;
-
-                    if (!result) {
-                        launchNext();
-                        maybeFail();
-                        return;
-                    }
-
-                    if (connected || attemptId !== this.connectAttemptId) {
-                        try { result.socket.close(); } catch { }
-                        launchNext();
-                        maybeFail();
-                        return;
-                    }
-
-                    connected = true;
-                    this.ws = result.socket;
-                    this.SERVER_IP = result.targetHost;
-                    localStorage.setItem(this.SERVER_IP_STORAGE_KEY, result.targetHost);
-                    this.connected = true;
-                    this.clearReconnectTimer();
-                    this.setConnectionState('connected');
-                    this.startConnectionMaintenance();
-                    this.setupIdleTimeout();
-                    this.attachActiveSocketHandlers(result.socket, result.targetHost);
-                    this.requestInitialData();
-                    console.log(`[WS] Connected to ws://${result.targetHost}:${this.SERVER_PORT}/ws`);
-                });
+            console.error("[WS ERROR]", err);
+            if (!this.connected && socket.readyState !== WebSocket.CONNECTING) {
+                this.setConnectionState('disconnected');
             }
         };
-
-        launchNext();
-        maybeFail();
+        
+        // Setup initial idle timeout
+        this.setupIdleTimeout();
     }
 
     setupIdleTimeout() {
@@ -724,8 +521,8 @@ export const Manager = new class {
     }
 
     reconnectNow() {
-        this.connectAttemptId++;
-        this.clearReconnectTimer();
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
         this.connected = false;
         this.stopConnectionMaintenance();
         this.setConnectionState('reconnecting');
