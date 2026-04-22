@@ -941,6 +941,8 @@ body[data-theme="forest"] {
 
 .dp-setting-toggle {
     justify-content: space-between;
+    align-items: center;
+    min-height: 76px;
 }
 
 .dp-setting-toggle .dp-setting-text {
