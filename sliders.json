@@ -2,7 +2,7 @@
   "sliders": [
     {
       "id": "a1",
-      "name": "Main Volume",
+      "name": "Main",
       "icon": "SoundIcon",
       "muteIcon": "SoundOffIcon",
       "code": "0=main",
@@ -24,15 +24,6 @@
       "icon": "MusicIcon",
       "muteIcon": "MusicOffIcon",
       "code": "1=music",
-      "volume": 50,
-      "is_muted": false
-    },
-    {
-      "id": "a4",
-      "name": "Calls",
-      "icon": "CallIcon",
-      "muteIcon": "CallOffIcon",
-      "code": "1=calls",
       "volume": 50,
       "is_muted": false
     },

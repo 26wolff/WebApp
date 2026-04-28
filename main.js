@@ -1,6 +1,18 @@
 ﻿// manager.js
 const DP_SERVER_IP_STORAGE_KEY = 'dp-server-ip';
 const DEFAULT_SERVER_IP = '192.168.2.175';
+/*
+    {
+      "id": "a4",
+      "name": "Calls",
+      "icon": "CallIcon",
+      "muteIcon": "CallOffIcon",
+      "code": "1=calls",
+      "volume": 50,
+      "is_muted": false
+    },
+*/
+
 
 function normalizeIpv4Address(value) {
     const text = String(value || '').trim();
@@ -55,6 +67,8 @@ export const Manager = new class {
         this.messageTimeout = null;
         this.lastMusicUpdateAt = 0;
         this.lastSliderUpdateAt = 0;
+        this.pendingSliderPackets = new Map();
+        this.sliderFlushTimer = null;
 
         this.sliderData = [];
         this.sliders = []; // list of Slider instances
@@ -176,6 +190,7 @@ export const Manager = new class {
             this.reconnectTimer = null;
             this.setConnectionState('connected');
             this.startConnectionMaintenance();
+            this.flushSliderPackets();
             this.requestInitialData();
         };
 
@@ -201,10 +216,6 @@ export const Manager = new class {
                     const value = msg[key];
                     const k = key.toLowerCase();
                     switch (k) {
-                        case "sliders":
-                            this.lastSliderUpdateAt = Date.now();
-                            this.updateSliderData(value);
-                            break;
                         case "apps": this.updateAppData(value); break;
                         case "applications": this.updateAppData(value); break;
                         case "games": this.updateGameData(value); break;
@@ -259,7 +270,6 @@ export const Manager = new class {
     requestInitialData() {
         // ask server for current state so UI is hydrated after fresh connect/reconnect
         const packets = [
-            "10=sliders=get",
             "10=applications=get",
             "10=music=get"
         ];
@@ -305,9 +315,52 @@ export const Manager = new class {
         return false;
     }
 
+    queueSliderPacket(code, value) {
+        if (typeof code !== 'string' || !code) return false;
+        const numericValue = Number.parseInt(value, 10);
+        const safeValue = Number.isFinite(numericValue)
+            ? Math.min(100, Math.max(0, numericValue))
+            : 0;
+
+        this.pendingSliderPackets.set(code, `${code}=${safeValue}`);
+        this.scheduleSliderFlush();
+        return true;
+    }
+
+    scheduleSliderFlush() {
+        if (this.sliderFlushTimer !== null) return;
+        this.sliderFlushTimer = setTimeout(() => {
+            this.sliderFlushTimer = null;
+            this.flushSliderPackets();
+        }, 50);
+    }
+
+    flushSliderPackets() {
+        if (!this.pendingSliderPackets.size) return;
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+        if (typeof this.ws.bufferedAmount === 'number' && this.ws.bufferedAmount > 0) {
+            this.scheduleSliderFlush();
+            return;
+        }
+
+        const iterator = this.pendingSliderPackets.entries().next();
+        if (iterator.done) return;
+
+        const [code, packet] = iterator.value;
+        if (this.sendPacket(packet)) {
+            this.pendingSliderPackets.delete(code);
+            console.log("[WS SEND]", packet);
+        }
+
+        if (this.pendingSliderPackets.size) {
+            this.scheduleSliderFlush();
+        }
+    }
+
     requestFreshState() {
         const now = Date.now();
-        const packets = ["10=sliders=get"];
+        const packets = [];
         if (now - this.lastMusicUpdateAt > 10000) {
             packets.push("10=music=get");
         }
@@ -443,6 +496,14 @@ export const Manager = new class {
             const slider = new Slider(sliderInfo, container, this.ws);
             this.sliders.push(slider);
         });
+
+        // Add class based on slider count for dynamic sizing
+        container.classList.remove('dp-sliders-4', 'dp-sliders-5');
+        if (this.sliderData.length === 4) {
+            container.classList.add('dp-sliders-4');
+        } else if (this.sliderData.length === 5) {
+            container.classList.add('dp-sliders-5');
+        }
     }
 
     renderApps() {
@@ -683,6 +744,7 @@ class Slider {
 
         this.prevVolume = this.volume;   // store previous non-zero volume for mute/unmute
         this.manualZero = false;         // true if user slid to 0 manually
+        this.saveStateTimer = null;
         const saved = this.getSavedState();
         if (saved) {
             if (typeof saved.volume === 'number') {
@@ -724,12 +786,13 @@ class Slider {
         this.iconWrap = this.container.querySelector('.dp-slider-icon');
         this.iconImg = this.container.querySelector('.dp-slider-icon img');
 
-        this.input.style.transition = 'all 0.2s ease';
+        this.input.style.transition = 'none';
 
         this.updateValueDisplay();
         this.updateIcon();
 
         this.input.addEventListener('input', () => this.onSliderChange());
+        this.input.addEventListener('change', () => this.flushPendingState());
         this.iconWrap.addEventListener('click', () => this.toggleMute());
     }
 
@@ -740,7 +803,7 @@ class Slider {
     }
 
     updateValueDisplay() {
-        this.valueSpan.textContent = (this.isMuted || parseInt(this.input.value) === 0) ? 'OFF' : parseInt(this.input.value);
+        this.valueSpan.textContent = (this.isMuted || parseInt(this.input.value) === 0) ? 'OFF' : `${parseInt(this.input.value)}%`;
         const isZero = parseInt(this.input.value) === 0 && !this.isMuted;
         if (isZero) {
             this.container.classList.add('dp-zero');
@@ -765,7 +828,7 @@ class Slider {
 
         this.updateIcon();
         this.updateValueDisplay();
-        this.saveState();
+        this.scheduleSaveState();
         this.sendMessage();
         Manager.syncSliderState(this);
     }
@@ -787,7 +850,7 @@ class Slider {
 
         this.updateIcon();
         this.updateValueDisplay();
-        this.saveState();
+        this.flushPendingState();
         this.sendMessage();
         Manager.syncSliderState(this);
     }
@@ -818,6 +881,7 @@ class Slider {
         this.updateIcon();
         this.updateValueDisplay();
         this.sendMessage();
+        this.flushPendingState();
         Manager.syncSliderState(this);
     }
 
@@ -829,17 +893,14 @@ class Slider {
         this.input.value = value;
         this.updateIcon();
         this.updateValueDisplay();
-        this.saveState();
+        this.scheduleSaveState();
     }
 
     sendMessage() {
-        if (Manager.ws && Manager.ws.readyState === WebSocket.OPEN) {
-            let val = parseInt(this.input.value);
-            if (this.isMuted) val = "0"; // ensure value is 0 if muted
-            const message = `${this.code}=${val}`;
-            Manager.sendPacket(message);
-            console.log("[WS SEND]", message);
-        }
+        let val = parseInt(this.input.value, 10);
+        if (!Number.isFinite(val)) val = 0;
+        if (this.isMuted) val = 0;
+        Manager.queueSliderPacket(this.code, val);
     }
 
     getSavedState() {
@@ -851,6 +912,21 @@ class Slider {
         } catch {
             return null;
         }
+    }
+
+    scheduleSaveState() {
+        clearTimeout(this.saveStateTimer);
+        this.saveStateTimer = setTimeout(() => {
+            this.saveStateTimer = null;
+            this.saveState();
+        }, 120);
+    }
+
+    flushPendingState() {
+        clearTimeout(this.saveStateTimer);
+        this.saveStateTimer = null;
+        this.saveState();
+        this.sendMessage();
     }
 
     saveState() {
