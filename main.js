@@ -1398,6 +1398,10 @@ window.addEventListener('load', () => {
     if (reconnectBtn) {
         reconnectBtn.addEventListener('click', () => Manager.reconnectNow());
     }
+    const resetPcProgramBtn = document.getElementById('dp-setting-reset-pc-program');
+    if (resetPcProgramBtn) {
+        resetPcProgramBtn.addEventListener('click', () => Manager.sendPacket('13=reset=true'));
+    }
     const serverIpDownTenBtn = document.getElementById('dp-setting-server-ip-down-ten');
     const serverIpDownBtn = document.getElementById('dp-setting-server-ip-down');
     const serverIpUpBtn = document.getElementById('dp-setting-server-ip-up');
@@ -1458,7 +1462,6 @@ window.addEventListener('load', () => {
 
     const brightnessInput = document.getElementById('dp-setting-brightness');
     const brightnessValue = document.getElementById('dp-setting-brightness-value');
-    const autoHomeToggle = document.getElementById('dp-setting-auto-home');
     const showSecondsToggle = document.getElementById('dp-setting-show-seconds');
     const clock24hToggle = document.getElementById('dp-setting-clock-24h');
     const showDateToggle = document.getElementById('dp-setting-show-date');
@@ -1539,36 +1542,6 @@ window.addEventListener('load', () => {
     bindToggleCard(showWeekdayToggle, () => {
         localStorage.setItem('dp-clock-weekday', showWeekdayToggle.checked ? '1' : '0');
     });
-    bindToggleCard(autoHomeToggle, () => {
-        localStorage.setItem('dp-auto-home', autoHomeToggle.checked ? '1' : '0');
-        resetAutoHomeTimer();
-    });
-
-    let autoHomeTimer = null;
-    const autoHomeEvents = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'];
-    const clearAutoHomeTimer = () => {
-        if (autoHomeTimer) {
-            clearTimeout(autoHomeTimer);
-            autoHomeTimer = null;
-        }
-    };
-    const resetAutoHomeTimer = () => {
-        clearAutoHomeTimer();
-        if (!autoHomeToggle || !autoHomeToggle.checked) return;
-        autoHomeTimer = setTimeout(() => {
-            if (typeof showOnlyDiv === 'function') {
-                showOnlyDiv('dp-Home');
-            }
-        }, 60000);
-    };
-    if (autoHomeToggle) {
-        autoHomeToggle.checked = localStorage.getItem('dp-auto-home') === '1';
-        autoHomeEvents.forEach(eventName => {
-            document.addEventListener(eventName, resetAutoHomeTimer, true);
-        });
-        resetAutoHomeTimer();
-    }
-
     const clockEl = document.getElementById('dp-home-clock');
     const dateEl = document.getElementById('dp-home-date');
     if (clockEl && dateEl) {

@@ -1511,19 +1511,31 @@ body[data-theme="forest"] {
     flex-direction: column;
     gap: 8px;
     width: 100%;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .dp-music-title {
     font-size: 32px;
     font-weight: 700;
     letter-spacing: .2px;
-    line-height: 1.02
+    line-height: 1.02;
+    max-width: 100%;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2
 }
 
 .dp-music-artist {
     font-size: 21px;
     opacity: .82;
-    line-height: 1.05
+    line-height: 1.05;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap
 }
 
 .dp-music-slider {
